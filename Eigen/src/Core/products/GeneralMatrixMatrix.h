@@ -263,16 +263,17 @@ class level3_blocking
 
   public:
 
+    EIGEN_DEVICE_FUNC
     level3_blocking()
       : m_blockA(0), m_blockB(0), m_mc(0), m_nc(0), m_kc(0)
     {}
 
-    inline Index mc() const { return m_mc; }
-    inline Index nc() const { return m_nc; }
-    inline Index kc() const { return m_kc; }
+    EIGEN_DEVICE_FUNC inline Index mc() const { return m_mc; }
+    EIGEN_DEVICE_FUNC inline Index nc() const { return m_nc; }
+    EIGEN_DEVICE_FUNC inline Index kc() const { return m_kc; }
 
-    inline LhsScalar* blockA() { return m_blockA; }
-    inline RhsScalar* blockB() { return m_blockB; }
+    EIGEN_DEVICE_FUNC inline LhsScalar* blockA() { return m_blockA; }
+    EIGEN_DEVICE_FUNC inline RhsScalar* blockB() { return m_blockB; }
 };
 
 template<int StorageOrder, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
@@ -304,6 +305,7 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
 
   public:
 
+    EIGEN_DEVICE_FUNC
     gemm_blocking_space(Index /*rows*/, Index /*cols*/, Index /*depth*/, Index /*num_threads*/, bool /*full_rows = false*/)
     {
       this->m_mc = ActualRows;
@@ -344,6 +346,7 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
 
   public:
 
+    EIGEN_DEVICE_FUNC
     gemm_blocking_space(Index rows, Index cols, Index depth, Index num_threads, bool l3_blocking)
     {
       this->m_mc = Transpose ? cols : rows;
@@ -395,6 +398,7 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
       allocateB();
     }
 
+    EIGEN_DEVICE_FUNC
     ~gemm_blocking_space()
     {
       aligned_delete(this->m_blockA, m_sizeA);

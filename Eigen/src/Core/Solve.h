@@ -137,6 +137,7 @@ template<typename DstXprType, typename DecType, typename RhsType, typename Scala
 struct Assignment<DstXprType, Solve<DecType,RhsType>, internal::assign_op<Scalar,Scalar>, Dense2Dense>
 {
   typedef Solve<DecType,RhsType> SrcXprType;
+  EIGEN_DEVICE_FUNC
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar,Scalar> &)
   {
     Index dstRows = src.rows();

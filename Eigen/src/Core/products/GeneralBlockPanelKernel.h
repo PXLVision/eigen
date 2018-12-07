@@ -2328,11 +2328,11 @@ template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pa
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
 {
   typedef typename DataMapper::LinearMapper LinearMapper;
-  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
   ::operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
   typedef typename unpacket_traits<Packet>::half HalfPacket;
@@ -2591,8 +2591,8 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
   typedef typename DataMapper::LinearMapper LinearMapper;
   enum { PacketSize = packet_traits<Scalar>::size,
          HalfPacketSize = unpacket_traits<HalfPacket>::size,
-		 QuarterPacketSize = unpacket_traits<QuarterPacket>::size};
-  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0)
+         QuarterPacketSize = unpacket_traits<QuarterPacket>::size};
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0)
   {
     EIGEN_ASM_COMMENT("EIGEN PRODUCT PACK RHS ROWMAJOR");
     EIGEN_UNUSED_VARIABLE(stride);

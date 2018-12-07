@@ -101,6 +101,8 @@ template<typename Scalar, typename Index, int nr, int StorageOrder>
 struct symm_pack_rhs
 {
   enum { PacketSize = packet_traits<Scalar>::size };
+
+  EIGEN_DEVICE_FUNC
   void operator()(Scalar* blockB, const Scalar* _rhs, Index rhsStride, Index rows, Index cols, Index k2)
   {
     Index end_k = k2 + rows;
@@ -423,6 +425,7 @@ template <typename Scalar, typename Index,
 struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLhs, RhsStorageOrder,true,ConjugateRhs,ColMajor,ResInnerStride>
 {
 
+  EIGEN_DEVICE_FUNC
   static EIGEN_DONT_INLINE void run(
     Index rows, Index cols,
     const Scalar* _lhs, Index lhsStride,
@@ -435,7 +438,7 @@ template <typename Scalar, typename Index,
           int LhsStorageOrder, bool ConjugateLhs,
           int RhsStorageOrder, bool ConjugateRhs,
           int ResInnerStride>
-EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLhs, RhsStorageOrder,true,ConjugateRhs,ColMajor,ResInnerStride>::run(
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLhs, RhsStorageOrder,true,ConjugateRhs,ColMajor,ResInnerStride>::run(
     Index rows, Index cols,
     const Scalar* _lhs, Index lhsStride,
     const Scalar* _rhs, Index rhsStride,
@@ -505,6 +508,7 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,RhsMode,false>
   };
   
   template<typename Dest>
+  EIGEN_DEVICE_FUNC
   static void run(Dest &dst, const Lhs &a_lhs, const Rhs &a_rhs, const Scalar& alpha)
   {
     eigen_assert(dst.rows()==a_lhs.rows() && dst.cols()==a_rhs.cols());

@@ -813,6 +813,7 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,SelfAdjointShape,ProductTag>
   typedef typename Product<Lhs,Rhs>::Scalar Scalar;
 
   template<typename Dest>
+  EIGEN_DEVICE_FUNC
   static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha)
   {
     selfadjoint_product_impl<Lhs,0,Lhs::IsVectorAtCompileTime,typename Rhs::MatrixType,Rhs::Mode,false>::run(dst, lhs, rhs.nestedExpression(), alpha);

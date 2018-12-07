@@ -246,7 +246,8 @@ struct selfadjoint_product_impl<Lhs,0,true,Rhs,RhsMode,false>
   enum { RhsUpLo = RhsMode&(Upper|Lower)  };
 
   template<typename Dest>
-  static void run(Dest& dest, const Lhs &a_lhs, const Rhs &a_rhs, const Scalar& alpha)
+  static EIGEN_DEVICE_FUNC
+  void run(Dest& dest, const Lhs &a_lhs, const Rhs &a_rhs, const Scalar& alpha)
   {
     // let's simply transpose the product
     Transpose<Dest> destT(dest);

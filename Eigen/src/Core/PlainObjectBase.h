@@ -647,10 +647,12 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     { return MapType(data); }
     static inline ConstMapType Map(const Scalar* data, Index size)
     { return ConstMapType(data, size); }
+    EIGEN_DEVICE_FUNC
     static inline MapType Map(Scalar* data, Index size)
     { return MapType(data, size); }
     static inline ConstMapType Map(const Scalar* data, Index rows, Index cols)
     { return ConstMapType(data, rows, cols); }
+    EIGEN_DEVICE_FUNC
     static inline MapType Map(Scalar* data, Index rows, Index cols)
     { return MapType(data, rows, cols); }
 
@@ -1004,6 +1006,7 @@ struct conservative_resize_like_impl
   #else
   static const bool IsRelocatable = !NumTraits<typename Derived::Scalar>::RequireInitialization;
   #endif
+  EIGEN_DEVICE_FUNC
   static void run(DenseBase<Derived>& _this, Index rows, Index cols)
   {
     if (_this.rows() == rows && _this.cols() == cols) return;
@@ -1027,6 +1030,7 @@ struct conservative_resize_like_impl
     }
   }
 
+  EIGEN_DEVICE_FUNC
   static void run(DenseBase<Derived>& _this, const DenseBase<OtherDerived>& other)
   {
     if (_this.rows() == other.rows() && _this.cols() == other.cols()) return;

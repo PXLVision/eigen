@@ -88,6 +88,7 @@ struct IndexedViewCompatibleType {
 };
 
 template<typename T,typename Q>
+EIGEN_DEVICE_FUNC
 const T& makeIndexedViewCompatible(const T& x, Index /*size*/, Q) { return x; }
 
 //--------------------------------------------------------------------------------

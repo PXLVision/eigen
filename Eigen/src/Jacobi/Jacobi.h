@@ -340,6 +340,7 @@ template<typename Scalar, typename OtherScalar,
          int SizeAtCompileTime, int MinAlignment>
 struct apply_rotation_in_the_plane_selector<Scalar,OtherScalar,SizeAtCompileTime,MinAlignment,true /* vectorizable */>
 {
+  EIGEN_DEVICE_FUNC
   static inline void run(Scalar *x, Index incrx, Scalar *y, Index incry, Index size, OtherScalar c, OtherScalar s)
   {
     enum {

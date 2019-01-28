@@ -28,17 +28,22 @@ protected:
 public:
     EIGEN_SPARSE_PUBLIC_INTERFACE(BlockType)
 
+    EIGEN_DEVICE_FUNC
     inline BlockImpl(XprType& xpr, Index i)
       : m_matrix(xpr), m_outerStart(convert_index(i)), m_outerSize(OuterSize)
     {}
 
+    EIGEN_DEVICE_FUNC
     inline BlockImpl(XprType& xpr, Index startRow, Index startCol, Index blockRows, Index blockCols)
       : m_matrix(xpr), m_outerStart(convert_index(IsRowMajor ? startRow : startCol)), m_outerSize(convert_index(IsRowMajor ? blockRows : blockCols))
     {}
 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Index rows() const { return IsRowMajor ? m_outerSize.value() : m_matrix.rows(); }
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Index cols() const { return IsRowMajor ? m_matrix.cols() : m_outerSize.value(); }
 
+    EIGEN_DEVICE_FUNC
     Index nonZeros() const
     {
       typedef internal::evaluator<XprType> EvaluatorType;
@@ -51,21 +56,29 @@ public:
       return nnz;
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar coeff(Index row, Index col) const
     {
       return m_matrix.coeff(row + (IsRowMajor ? m_outerStart : 0), col + (IsRowMajor ? 0 :  m_outerStart));
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar coeff(Index index) const
     {
       return m_matrix.coeff(IsRowMajor ? m_outerStart : index, IsRowMajor ? index :  m_outerStart);
     }
 
+    EIGEN_DEVICE_FUNC
     inline const XprType& nestedExpression() const { return m_matrix; }
+    EIGEN_DEVICE_FUNC
     inline XprType& nestedExpression() { return m_matrix; }
+    EIGEN_DEVICE_FUNC
     Index startRow() const { return IsRowMajor ? m_outerStart : 0; }
+    EIGEN_DEVICE_FUNC
     Index startCol() const { return IsRowMajor ? 0 : m_outerStart; }
+    EIGEN_DEVICE_FUNC
     Index blockRows() const { return IsRowMajor ? m_outerSize.value() : m_matrix.rows(); }
+    EIGEN_DEVICE_FUNC
     Index blockCols() const { return IsRowMajor ? m_matrix.cols() : m_outerSize.value(); }
 
   protected:
@@ -78,6 +91,7 @@ public:
     // Disable assignment with clear error message.
     // Note that simply removing operator= yields compilation errors with ICC+MSVC
     template<typename T>
+    EIGEN_DEVICE_FUNC
     BlockImpl& operator=(const T&)
     {
       EIGEN_STATIC_ASSERT(sizeof(T)==0, THIS_SPARSE_BLOCK_SUBEXPRESSION_IS_READ_ONLY);
@@ -108,15 +122,18 @@ protected:
     enum { OuterSize = IsRowMajor ? BlockRows : BlockCols };
 public:
 
+    EIGEN_DEVICE_FUNC
     inline sparse_matrix_block_impl(SparseMatrixType& xpr, Index i)
       : m_matrix(xpr), m_outerStart(convert_index(i)), m_outerSize(OuterSize)
     {}
 
+    EIGEN_DEVICE_FUNC
     inline sparse_matrix_block_impl(SparseMatrixType& xpr, Index startRow, Index startCol, Index blockRows, Index blockCols)
       : m_matrix(xpr), m_outerStart(convert_index(IsRowMajor ? startRow : startCol)), m_outerSize(convert_index(IsRowMajor ? blockRows : blockCols))
     {}
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     inline BlockType& operator=(const SparseMatrixBase<OtherDerived>& other)
     {
       typedef typename internal::remove_all<typename SparseMatrixType::Nested>::type _NestedMatrixType;
@@ -211,48 +228,62 @@ public:
       return derived();
     }
 
+    EIGEN_DEVICE_FUNC
     inline BlockType& operator=(const BlockType& other)
     {
       return operator=<BlockType>(other);
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar* valuePtr() const
     { return m_matrix.valuePtr(); }
+    EIGEN_DEVICE_FUNC
     inline Scalar* valuePtr()
     { return m_matrix.valuePtr(); }
 
+    EIGEN_DEVICE_FUNC
     inline const StorageIndex* innerIndexPtr() const
     { return m_matrix.innerIndexPtr(); }
+    EIGEN_DEVICE_FUNC
     inline StorageIndex* innerIndexPtr()
     { return m_matrix.innerIndexPtr(); }
 
+    EIGEN_DEVICE_FUNC
     inline const StorageIndex* outerIndexPtr() const
     { return m_matrix.outerIndexPtr() + m_outerStart; }
+    EIGEN_DEVICE_FUNC
     inline StorageIndex* outerIndexPtr()
     { return m_matrix.outerIndexPtr() + m_outerStart; }
 
+    EIGEN_DEVICE_FUNC
     inline const StorageIndex* innerNonZeroPtr() const
     { return isCompressed() ? 0 : (m_matrix.innerNonZeroPtr()+m_outerStart); }
+    EIGEN_DEVICE_FUNC
     inline StorageIndex* innerNonZeroPtr()
     { return isCompressed() ? 0 : (m_matrix.innerNonZeroPtr()+m_outerStart); }
 
+    EIGEN_DEVICE_FUNC
     bool isCompressed() const { return m_matrix.innerNonZeroPtr()==0; }
 
+    EIGEN_DEVICE_FUNC
     inline Scalar& coeffRef(Index row, Index col)
     {
       return m_matrix.coeffRef(row + (IsRowMajor ? m_outerStart : 0), col + (IsRowMajor ? 0 :  m_outerStart));
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar coeff(Index row, Index col) const
     {
       return m_matrix.coeff(row + (IsRowMajor ? m_outerStart : 0), col + (IsRowMajor ? 0 :  m_outerStart));
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar coeff(Index index) const
     {
       return m_matrix.coeff(IsRowMajor ? m_outerStart : index, IsRowMajor ? index :  m_outerStart);
     }
 
+    EIGEN_DEVICE_FUNC
     const Scalar& lastCoeff() const
     {
       EIGEN_STATIC_ASSERT_VECTOR_ONLY(sparse_matrix_block_impl);
@@ -263,14 +294,22 @@ public:
         return m_matrix.valuePtr()[m_matrix.outerIndexPtr()[m_outerStart]+m_matrix.innerNonZeroPtr()[m_outerStart]-1];
     }
 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Index rows() const { return IsRowMajor ? m_outerSize.value() : m_matrix.rows(); }
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Index cols() const { return IsRowMajor ? m_matrix.cols() : m_outerSize.value(); }
 
+    EIGEN_DEVICE_FUNC
     inline const SparseMatrixType& nestedExpression() const { return m_matrix; }
+    EIGEN_DEVICE_FUNC
     inline SparseMatrixType& nestedExpression() { return m_matrix; }
+    EIGEN_DEVICE_FUNC
     Index startRow() const { return IsRowMajor ? m_outerStart : 0; }
+    EIGEN_DEVICE_FUNC
     Index startCol() const { return IsRowMajor ? 0 : m_outerStart; }
+    EIGEN_DEVICE_FUNC
     Index blockRows() const { return IsRowMajor ? m_outerSize.value() : m_matrix.rows(); }
+    EIGEN_DEVICE_FUNC
     Index blockCols() const { return IsRowMajor ? m_matrix.cols() : m_outerSize.value(); }
 
   protected:
@@ -291,10 +330,12 @@ public:
   typedef StorageIndex_ StorageIndex;
   typedef SparseMatrix<Scalar_, Options_, StorageIndex_> SparseMatrixType;
   typedef internal::sparse_matrix_block_impl<SparseMatrixType,BlockRows,BlockCols> Base;
+  EIGEN_DEVICE_FUNC
   inline BlockImpl(SparseMatrixType& xpr, Index i)
     : Base(xpr, i)
   {}
 
+  EIGEN_DEVICE_FUNC
   inline BlockImpl(SparseMatrixType& xpr, Index startRow, Index startCol, Index blockRows, Index blockCols)
     : Base(xpr, startRow, startCol, blockRows, blockCols)
   {}
@@ -310,10 +351,12 @@ public:
   typedef StorageIndex_ StorageIndex;
   typedef const SparseMatrix<Scalar_, Options_, StorageIndex_> SparseMatrixType;
   typedef internal::sparse_matrix_block_impl<SparseMatrixType,BlockRows,BlockCols> Base;
+  EIGEN_DEVICE_FUNC
   inline BlockImpl(SparseMatrixType& xpr, Index i)
     : Base(xpr, i)
   {}
 
+  EIGEN_DEVICE_FUNC
   inline BlockImpl(SparseMatrixType& xpr, Index startRow, Index startCol, Index blockRows, Index blockCols)
     : Base(xpr, startRow, startCol, blockRows, blockCols)
   {}
@@ -344,6 +387,7 @@ public:
 
     /** Column or Row constructor
       */
+    EIGEN_DEVICE_FUNC
     inline BlockImpl(XprType& xpr, Index i)
       : m_matrix(xpr),
         m_startRow( (BlockRows==1) && (BlockCols==XprType::ColsAtCompileTime) ? convert_index(i) : 0),
@@ -354,46 +398,60 @@ public:
 
     /** Dynamic-size constructor
       */
+    EIGEN_DEVICE_FUNC
     inline BlockImpl(XprType& xpr, Index startRow, Index startCol, Index blockRows, Index blockCols)
       : m_matrix(xpr), m_startRow(convert_index(startRow)), m_startCol(convert_index(startCol)), m_blockRows(convert_index(blockRows)), m_blockCols(convert_index(blockCols))
     {}
 
+    EIGEN_DEVICE_FUNC
     inline Index rows() const { return m_blockRows.value(); }
+    EIGEN_DEVICE_FUNC
     inline Index cols() const { return m_blockCols.value(); }
 
+    EIGEN_DEVICE_FUNC
     inline Scalar& coeffRef(Index row, Index col)
     {
       return m_matrix.coeffRef(row + m_startRow.value(), col + m_startCol.value());
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar coeff(Index row, Index col) const
     {
       return m_matrix.coeff(row + m_startRow.value(), col + m_startCol.value());
     }
 
+    EIGEN_DEVICE_FUNC
     inline Scalar& coeffRef(Index index)
     {
       return m_matrix.coeffRef(m_startRow.value() + (RowsAtCompileTime == 1 ? 0 : index),
                                m_startCol.value() + (RowsAtCompileTime == 1 ? index : 0));
     }
 
+    EIGEN_DEVICE_FUNC
     inline const Scalar coeff(Index index) const
     {
       return m_matrix.coeff(m_startRow.value() + (RowsAtCompileTime == 1 ? 0 : index),
                             m_startCol.value() + (RowsAtCompileTime == 1 ? index : 0));
     }
 
+    EIGEN_DEVICE_FUNC
     inline const XprType& nestedExpression() const { return m_matrix; }
+    EIGEN_DEVICE_FUNC
     inline XprType& nestedExpression() { return m_matrix; }
+    EIGEN_DEVICE_FUNC
     Index startRow() const { return m_startRow.value(); }
+    EIGEN_DEVICE_FUNC
     Index startCol() const { return m_startCol.value(); }
+    EIGEN_DEVICE_FUNC
     Index blockRows() const { return m_blockRows.value(); }
+    EIGEN_DEVICE_FUNC
     Index blockCols() const { return m_blockCols.value(); }
 
   protected:
 //     friend class internal::GenericSparseBlockInnerIteratorImpl<XprType,BlockRows,BlockCols,InnerPanel>;
     friend struct internal::unary_evaluator<Block<XprType,BlockRows,BlockCols,InnerPanel>, internal::IteratorBased, Scalar >;
 
+    EIGEN_DEVICE_FUNC
     Index nonZeros() const { return Dynamic; }
 
     typename internal::ref_selector<XprType>::non_const_type m_matrix;
@@ -406,6 +464,7 @@ public:
     // Disable assignment with clear error message.
     // Note that simply removing operator= yields compilation errors with ICC+MSVC
     template<typename T>
+    EIGEN_DEVICE_FUNC
     BlockImpl& operator=(const T&)
     {
       EIGEN_STATIC_ASSERT(sizeof(T)==0, THIS_SPARSE_BLOCK_SUBEXPRESSION_IS_READ_ONLY);
@@ -441,10 +500,12 @@ struct unary_evaluator<Block<ArgType,BlockRows,BlockCols,InnerPanel>, IteratorBa
 
     typedef typename internal::conditional<OuterVector,OuterVectorInnerIterator,InnerVectorInnerIterator>::type InnerIterator;
 
+    EIGEN_DEVICE_FUNC
     explicit unary_evaluator(const XprType& op)
       : m_argImpl(op.nestedExpression()), m_block(op)
     {}
 
+    EIGEN_DEVICE_FUNC
     inline Index nonZerosEstimate() const {
       const Index nnz = m_block.nonZeros();
       if(nnz < 0) {
@@ -475,6 +536,7 @@ class unary_evaluator<Block<ArgType,BlockRows,BlockCols,InnerPanel>, IteratorBas
   Index m_end;
 public:
 
+  EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE InnerVectorInnerIterator(const unary_evaluator& aEval, Index outer)
     : EvalIterator(aEval.m_argImpl, outer + (XprIsRowMajor ? aEval.m_block.startRow() : aEval.m_block.startCol())),
       m_block(aEval.m_block),
@@ -484,11 +546,16 @@ public:
       EvalIterator::operator++();
   }
 
+  EIGEN_DEVICE_FUNC
   inline StorageIndex index() const { return EvalIterator::index() - convert_index<StorageIndex>(XprIsRowMajor ? m_block.startCol() : m_block.startRow()); }
+  EIGEN_DEVICE_FUNC
   inline Index outer()  const { return EvalIterator::outer() - (XprIsRowMajor ? m_block.startRow() : m_block.startCol()); }
+  EIGEN_DEVICE_FUNC
   inline Index row()    const { return EvalIterator::row()   - m_block.startRow(); }
+  EIGEN_DEVICE_FUNC
   inline Index col()    const { return EvalIterator::col()   - m_block.startCol(); }
 
+  EIGEN_DEVICE_FUNC
   inline operator bool() const { return EvalIterator::operator bool() && EvalIterator::index() < m_end; }
 };
 
@@ -504,6 +571,7 @@ class unary_evaluator<Block<ArgType,BlockRows,BlockCols,InnerPanel>, IteratorBas
   EvalIterator m_it;
 public:
 
+  EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE OuterVectorInnerIterator(const unary_evaluator& aEval, Index outer)
     : m_eval(aEval),
       m_outerPos( (XprIsRowMajor ? aEval.m_block.startCol() : aEval.m_block.startRow()) ),
@@ -519,14 +587,21 @@ public:
       ++(*this);
   }
 
+  EIGEN_DEVICE_FUNC
   inline StorageIndex index() const { return convert_index<StorageIndex>(m_outerPos - (XprIsRowMajor ? m_eval.m_block.startCol() : m_eval.m_block.startRow())); }
+  EIGEN_DEVICE_FUNC
   inline Index outer()  const { return 0; }
+  EIGEN_DEVICE_FUNC
   inline Index row()    const { return XprIsRowMajor ? 0 : index(); }
+  EIGEN_DEVICE_FUNC
   inline Index col()    const { return XprIsRowMajor ? index() : 0; }
 
+  EIGEN_DEVICE_FUNC
   inline Scalar value() const { return m_it.value(); }
+  EIGEN_DEVICE_FUNC
   inline Scalar& valueRef() { return m_it.valueRef(); }
 
+  EIGEN_DEVICE_FUNC
   inline OuterVectorInnerIterator& operator++()
   {
     // search next non-zero entry
@@ -542,6 +617,7 @@ public:
     return *this;
   }
 
+  EIGEN_DEVICE_FUNC
   inline operator bool() const { return m_outerPos < m_end; }
 };
 
@@ -551,6 +627,7 @@ struct unary_evaluator<Block<SparseMatrix<Scalar_, Options_, StorageIndex_>,Bloc
 {
   typedef Block<SparseMatrix<Scalar_, Options_, StorageIndex_>,BlockRows,BlockCols,true> XprType;
   typedef evaluator<SparseCompressedBase<XprType> > Base;
+  EIGEN_DEVICE_FUNC
   explicit unary_evaluator(const XprType &xpr) : Base(xpr) {}
 };
 
@@ -560,6 +637,7 @@ struct unary_evaluator<Block<const SparseMatrix<Scalar_, Options_, StorageIndex_
 {
   typedef Block<const SparseMatrix<Scalar_, Options_, StorageIndex_>,BlockRows,BlockCols,true> XprType;
   typedef evaluator<SparseCompressedBase<XprType> > Base;
+  EIGEN_DEVICE_FUNC
   explicit unary_evaluator(const XprType &xpr) : Base(xpr) {}
 };
 

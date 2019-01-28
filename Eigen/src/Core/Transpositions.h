@@ -30,6 +30,7 @@ class TranspositionsBase
 
     /** Copies the \a other transpositions into \c *this */
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator=(const TranspositionsBase<OtherDerived>& other)
     {
       indices() = other.indices();
@@ -109,10 +110,12 @@ class TranspositionsBase
     */
 
     /** \returns the inverse transformation */
+    EIGEN_DEVICE_FUNC
     inline Transpose<TranspositionsBase> inverse() const
     { return Transpose<TranspositionsBase>(derived()); }
 
     /** \returns the tranpose transformation */
+    EIGEN_DEVICE_FUNC
     inline Transpose<TranspositionsBase> transpose() const
     { return Transpose<TranspositionsBase>(derived()); }
 
@@ -245,16 +248,19 @@ class Map<Transpositions<SizeAtCompileTime,MaxSizeAtCompileTime,StorageIndex_>,P
     typedef typename Traits::IndicesType IndicesType;
     typedef typename IndicesType::Scalar StorageIndex;
 
+    EIGEN_DEVICE_FUNC
     explicit inline Map(const StorageIndex* indicesPtr)
       : m_indices(indicesPtr)
     {}
 
+    EIGEN_DEVICE_FUNC
     inline Map(const StorageIndex* indicesPtr, Index size)
       : m_indices(indicesPtr,size)
     {}
 
     /** Copies the \a other transpositions into \c *this */
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Map& operator=(const TranspositionsBase<OtherDerived>& other)
     {
       return Base::operator=(other);
@@ -304,12 +310,14 @@ class TranspositionsWrapper
     typedef typename Traits::IndicesType IndicesType;
     typedef typename IndicesType::Scalar StorageIndex;
 
+    EIGEN_DEVICE_FUNC
     explicit inline TranspositionsWrapper(IndicesType& indices)
       : m_indices(indices)
     {}
 
     /** Copies the \a other transpositions into \c *this */
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     TranspositionsWrapper& operator=(const TranspositionsBase<OtherDerived>& other)
     {
       return Base::operator=(other);
@@ -372,6 +380,7 @@ class Transpose<TranspositionsBase<TranspositionsDerived> >
     typedef typename TranspositionType::IndicesType IndicesType;
   public:
 
+    EIGEN_DEVICE_FUNC
     explicit Transpose(const TranspositionType& t) : m_transpositions(t) {}
 
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
@@ -384,6 +393,7 @@ class Transpose<TranspositionsBase<TranspositionsDerived> >
     /** \returns the \a matrix with the inverse transpositions applied to the columns.
       */
     template<typename OtherDerived> friend
+    EIGEN_DEVICE_FUNC
     const Product<OtherDerived, Transpose, AliasFreeProduct>
     operator*(const MatrixBase<OtherDerived>& matrix, const Transpose& trt)
     {
@@ -393,6 +403,7 @@ class Transpose<TranspositionsBase<TranspositionsDerived> >
     /** \returns the \a matrix with the inverse transpositions applied to the rows.
       */
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     const Product<Transpose, OtherDerived, AliasFreeProduct>
     operator*(const MatrixBase<OtherDerived>& matrix) const
     {

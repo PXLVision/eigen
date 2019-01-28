@@ -229,7 +229,7 @@ struct evaluator<PlainObjectBase<Derived> >
   }
 
   template<int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   PacketType packet(Index row, Index col) const
   {
     if (IsRowMajor)
@@ -239,14 +239,14 @@ struct evaluator<PlainObjectBase<Derived> >
   }
 
   template<int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   PacketType packet(Index index) const
   {
     return ploadt<PacketType, LoadMode>(m_d.data + index);
   }
 
   template<int StoreMode,typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   void writePacket(Index row, Index col, const PacketType& x)
   {
     if (IsRowMajor)
@@ -258,7 +258,7 @@ struct evaluator<PlainObjectBase<Derived> >
   }
 
   template<int StoreMode, typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   void writePacket(Index index, const PacketType& x)
   {
     return pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x);
@@ -344,28 +344,28 @@ struct unary_evaluator<Transpose<ArgType>, IndexBased>
   }
 
   template<int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   PacketType packet(Index row, Index col) const
   {
     return m_argImpl.template packet<LoadMode,PacketType>(col, row);
   }
 
   template<int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   PacketType packet(Index index) const
   {
     return m_argImpl.template packet<LoadMode,PacketType>(index);
   }
 
   template<int StoreMode, typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   void writePacket(Index row, Index col, const PacketType& x)
   {
     m_argImpl.template writePacket<StoreMode,PacketType>(col, row, x);
   }
 
   template<int StoreMode, typename PacketType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   void writePacket(Index index, const PacketType& x)
   {
     m_argImpl.template writePacket<StoreMode,PacketType>(index, x);
@@ -534,14 +534,14 @@ struct evaluator<CwiseNullaryOp<NullaryOp,PlainObjectType> >
   }
 
   template<int LoadMode, typename PacketType, typename IndexType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   PacketType packet(IndexType row, IndexType col) const
   {
     return m_wrapper.template packetOp<PacketType>(m_functor, row, col);
   }
 
   template<int LoadMode, typename PacketType, typename IndexType>
-  EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   PacketType packet(IndexType index) const
   {
     return m_wrapper.template packetOp<PacketType>(m_functor, index);

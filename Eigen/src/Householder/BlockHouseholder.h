@@ -48,6 +48,7 @@ namespace internal {
 /** \internal */
 // This variant avoid modifications in vectors
 template<typename TriangularFactorType,typename VectorsType,typename CoeffsType>
+EIGEN_DEVICE_FUNC
 void make_block_householder_triangular_factor(TriangularFactorType& triFactor, const VectorsType& vectors, const CoeffsType& hCoeffs)
 {
   const Index nbVecs = vectors.cols();
@@ -83,6 +84,7 @@ void make_block_householder_triangular_factor(TriangularFactorType& triFactor, c
   * otherwise perform         mat = H2 * H1 * H0 * mat
   */
 template<typename MatrixType,typename VectorsType,typename CoeffsType>
+EIGEN_DEVICE_FUNC
 void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vectors, const CoeffsType& hCoeffs, bool forward)
 {
   enum { TFactorSize = MatrixType::ColsAtCompileTime };

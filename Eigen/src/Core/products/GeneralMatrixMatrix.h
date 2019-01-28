@@ -320,12 +320,12 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
 #endif
     }
 
-    void initParallel(Index, Index, Index, Index)
+    EIGEN_DEVICE_FUNC void initParallel(Index, Index, Index, Index)
     {}
 
-    inline void allocateA() {}
-    inline void allocateB() {}
-    inline void allocateAll() {}
+    EIGEN_DEVICE_FUNC inline void allocateA() {}
+    EIGEN_DEVICE_FUNC inline void allocateB() {}
+    EIGEN_DEVICE_FUNC inline void allocateAll() {}
 };
 
 template<int StorageOrder, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
@@ -367,7 +367,7 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
       m_sizeB = this->m_kc * this->m_nc;
     }
 
-    void initParallel(Index rows, Index cols, Index depth, Index num_threads)
+    EIGEN_DEVICE_FUNC void initParallel(Index rows, Index cols, Index depth, Index num_threads)
     {
       this->m_mc = Transpose ? cols : rows;
       this->m_nc = Transpose ? rows : cols;
@@ -380,19 +380,19 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
       m_sizeB = this->m_kc * this->m_nc;
     }
 
-    void allocateA()
+    EIGEN_DEVICE_FUNC void allocateA()
     {
       if(this->m_blockA==0)
         this->m_blockA = aligned_new<LhsScalar>(m_sizeA);
     }
 
-    void allocateB()
+    EIGEN_DEVICE_FUNC void allocateB()
     {
       if(this->m_blockB==0)
         this->m_blockB = aligned_new<RhsScalar>(m_sizeB);
     }
 
-    void allocateAll()
+    EIGEN_DEVICE_FUNC void allocateAll()
     {
       allocateA();
       allocateB();

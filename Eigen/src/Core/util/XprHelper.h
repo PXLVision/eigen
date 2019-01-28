@@ -19,7 +19,8 @@
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE X() {} \
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE X(const X& ) {}
 #else
-  #define EIGEN_EMPTY_STRUCT_CTOR(X)
+  #define EIGEN_EMPTY_STRUCT_CTOR(X) \
+    EIGEN_DEVICE_FUNC
 #endif
 
 namespace Eigen {

@@ -36,18 +36,21 @@ struct IvcType : public internal::IndexedViewCompatibleType<Indices,SizeAtCompil
 typedef typename internal::IndexedViewCompatibleType<Index,1>::type IvcIndex;
 
 template<typename Indices>
+EIGEN_DEVICE_FUNC
 typename IvcRowType<Indices>::type
 ivcRow(const Indices& indices) const {
   return internal::makeIndexedViewCompatible(indices, internal::variable_if_dynamic<Index,RowsAtCompileTime>(derived().rows()),Specialized);
 }
 
 template<typename Indices>
+EIGEN_DEVICE_FUNC
 typename IvcColType<Indices>::type
 ivcCol(const Indices& indices) const {
   return internal::makeIndexedViewCompatible(indices, internal::variable_if_dynamic<Index,ColsAtCompileTime>(derived().cols()),Specialized);
 }
 
 template<typename Indices>
+EIGEN_DEVICE_FUNC
 typename IvcColType<Indices>::type
 ivcSize(const Indices& indices) const {
   return internal::makeIndexedViewCompatible(indices, internal::variable_if_dynamic<Index,SizeAtCompileTime>(derived().size()),Specialized);
@@ -67,6 +70,7 @@ struct EIGEN_INDEXED_VIEW_METHOD_TYPE {
 // This is the generic version
 
 template<typename RowIndices, typename ColIndices>
+EIGEN_DEVICE_FUNC
 typename internal::enable_if<internal::valid_indexed_view_overload<RowIndices,ColIndices>::value
   && internal::traits<typename EIGEN_INDEXED_VIEW_METHOD_TYPE<RowIndices,ColIndices>::type>::ReturnAsIndexedView,
   typename EIGEN_INDEXED_VIEW_METHOD_TYPE<RowIndices,ColIndices>::type >::type

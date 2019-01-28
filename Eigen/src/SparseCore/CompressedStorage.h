@@ -32,22 +32,26 @@ class CompressedStorage
 
   public:
 
+    EIGEN_DEVICE_FUNC
     CompressedStorage()
       : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0)
     {}
 
+    EIGEN_DEVICE_FUNC
     explicit CompressedStorage(Index size)
       : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0)
     {
       resize(size);
     }
 
+    EIGEN_DEVICE_FUNC
     CompressedStorage(const CompressedStorage& other)
       : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0)
     {
       *this = other;
     }
 
+    EIGEN_DEVICE_FUNC
     CompressedStorage& operator=(const CompressedStorage& other)
     {
       resize(other.size());
@@ -59,20 +63,23 @@ class CompressedStorage
       return *this;
     }
 
+    EIGEN_DEVICE_FUNC
     void swap(CompressedStorage& other)
     {
-      std::swap(m_values, other.m_values);
-      std::swap(m_indices, other.m_indices);
-      std::swap(m_size, other.m_size);
-      std::swap(m_allocatedSize, other.m_allocatedSize);
+      numext::swap(m_values, other.m_values);
+      numext::swap(m_indices, other.m_indices);
+      numext::swap(m_size, other.m_size);
+      numext::swap(m_allocatedSize, other.m_allocatedSize);
     }
 
+    EIGEN_DEVICE_FUNC
     ~CompressedStorage()
     {
       delete[] m_values;
       delete[] m_indices;
     }
 
+    EIGEN_DEVICE_FUNC
     void reserve(Index size)
     {
       Index newAllocatedSize = m_size + size;
@@ -80,12 +87,14 @@ class CompressedStorage
         reallocate(newAllocatedSize);
     }
 
+    EIGEN_DEVICE_FUNC
     void squeeze()
     {
       if (m_allocatedSize>m_size)
         reallocate(m_size);
     }
 
+    EIGEN_DEVICE_FUNC
     void resize(Index size, double reserveSizeFactor = 0)
     {
       if (m_allocatedSize<size)
@@ -98,6 +107,7 @@ class CompressedStorage
       m_size = size;
     }
 
+    EIGEN_DEVICE_FUNC
     void append(const Scalar& v, Index i)
     {
       Index id = m_size;
@@ -106,28 +116,41 @@ class CompressedStorage
       m_indices[id] = internal::convert_index<StorageIndex>(i);
     }
 
+    EIGEN_DEVICE_FUNC
     inline Index size() const { return m_size; }
+    EIGEN_DEVICE_FUNC
     inline Index allocatedSize() const { return m_allocatedSize; }
+    EIGEN_DEVICE_FUNC
     inline void clear() { m_size = 0; }
 
+    EIGEN_DEVICE_FUNC
     const Scalar* valuePtr() const { return m_values; }
+    EIGEN_DEVICE_FUNC
     Scalar* valuePtr() { return m_values; }
+    EIGEN_DEVICE_FUNC
     const StorageIndex* indexPtr() const { return m_indices; }
+    EIGEN_DEVICE_FUNC
     StorageIndex* indexPtr() { return m_indices; }
 
+    EIGEN_DEVICE_FUNC
     inline Scalar& value(Index i) { eigen_internal_assert(m_values!=0); return m_values[i]; }
+    EIGEN_DEVICE_FUNC
     inline const Scalar& value(Index i) const { eigen_internal_assert(m_values!=0); return m_values[i]; }
 
+    EIGEN_DEVICE_FUNC
     inline StorageIndex& index(Index i) { eigen_internal_assert(m_indices!=0); return m_indices[i]; }
+    EIGEN_DEVICE_FUNC
     inline const StorageIndex& index(Index i) const { eigen_internal_assert(m_indices!=0); return m_indices[i]; }
 
     /** \returns the largest \c k such that for all \c j in [0,k) index[\c j]\<\a key */
+    EIGEN_DEVICE_FUNC
     inline Index searchLowerIndex(Index key) const
     {
       return searchLowerIndex(0, m_size, key);
     }
 
     /** \returns the largest \c k in [start,end) such that for all \c j in [start,k) index[\c j]\<\a key */
+    EIGEN_DEVICE_FUNC
     inline Index searchLowerIndex(Index start, Index end, Index key) const
     {
       while(end>start)
@@ -143,6 +166,7 @@ class CompressedStorage
 
     /** \returns the stored value at index \a key
       * If the value does not exist, then the value \a defaultValue is returned without any insertion. */
+    EIGEN_DEVICE_FUNC
     inline Scalar at(Index key, const Scalar& defaultValue = Scalar(0)) const
     {
       if (m_size==0)
@@ -156,6 +180,7 @@ class CompressedStorage
     }
 
     /** Like at(), but the search is performed in the range [start,end) */
+    EIGEN_DEVICE_FUNC
     inline Scalar atInRange(Index start, Index end, Index key, const Scalar &defaultValue = Scalar(0)) const
     {
       if (start>=end)
@@ -171,6 +196,7 @@ class CompressedStorage
     /** \returns a reference to the value at index \a key
       * If the value does not exist, then the value \a defaultValue is inserted
       * such that the keys are sorted. */
+    EIGEN_DEVICE_FUNC
     inline Scalar& atWithInsertion(Index key, const Scalar& defaultValue = Scalar(0))
     {
       Index id = searchLowerIndex(0,m_size,key);
@@ -192,8 +218,8 @@ class CompressedStorage
             internal::smart_copy(m_values +id,  m_values +m_size, newValues.ptr() +id+1);
             internal::smart_copy(m_indices+id,  m_indices+m_size, newIndices.ptr()+id+1);
           }
-          std::swap(m_values,newValues.ptr());
-          std::swap(m_indices,newIndices.ptr());
+          numext::swap(m_values,newValues.ptr());
+          numext::swap(m_indices,newIndices.ptr());
         }
         else if(m_size>id)
         {
@@ -207,6 +233,7 @@ class CompressedStorage
       return m_values[id];
     }
 
+    EIGEN_DEVICE_FUNC
     void moveChunk(Index from, Index to, Index chunkSize)
     {
       eigen_internal_assert(to+chunkSize <= m_size);
@@ -223,6 +250,7 @@ class CompressedStorage
       }
     }
 
+    EIGEN_DEVICE_FUNC
     void prune(const Scalar& reference, const RealScalar& epsilon = NumTraits<RealScalar>::dummy_precision())
     {
       Index k = 0;
@@ -241,6 +269,7 @@ class CompressedStorage
 
   protected:
 
+    EIGEN_DEVICE_FUNC
     inline void reallocate(Index size)
     {
       #ifdef EIGEN_SPARSE_COMPRESSED_STORAGE_REALLOCATE_PLUGIN
@@ -254,8 +283,8 @@ class CompressedStorage
         internal::smart_copy(m_values, m_values+copySize, newValues.ptr());
         internal::smart_copy(m_indices, m_indices+copySize, newIndices.ptr());
       }
-      std::swap(m_values,newValues.ptr());
-      std::swap(m_indices,newIndices.ptr());
+      numext::swap(m_values,newValues.ptr());
+      numext::swap(m_indices,newIndices.ptr());
       m_allocatedSize = size;
     }
 

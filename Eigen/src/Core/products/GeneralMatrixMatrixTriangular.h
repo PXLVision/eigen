@@ -42,7 +42,7 @@ template <typename Index, typename LhsScalar, int LhsStorageOrder, bool Conjugat
 struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,RowMajor,ResInnerStride,UpLo,Version>
 {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
-  static EIGEN_STRONG_INLINE void run(Index size, Index depth,const LhsScalar* lhs, Index lhsStride,
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Index size, Index depth,const LhsScalar* lhs, Index lhsStride,
                                       const RhsScalar* rhs, Index rhsStride, ResScalar* res, Index resIncr, Index resStride,
                                       const ResScalar& alpha, level3_blocking<RhsScalar,LhsScalar>& blocking)
   {
@@ -207,6 +207,7 @@ struct general_product_to_triangular_selector;
 template<typename MatrixType, typename ProductType, int UpLo>
 struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,true>
 {
+  EIGEN_DEVICE_FUNC
   static void run(MatrixType& mat, const ProductType& prod, const typename MatrixType::Scalar& alpha, bool beta)
   {
     typedef typename MatrixType::Scalar Scalar;

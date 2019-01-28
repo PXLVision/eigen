@@ -51,21 +51,29 @@ public:
   EIGEN_SPARSE_PUBLIC_INTERFACE(SparseView)
   typedef typename internal::remove_all<MatrixType>::type NestedExpression;
 
+  EIGEN_DEVICE_FUNC
   explicit SparseView(const MatrixType& mat, const Scalar& reference = Scalar(0),
                       const RealScalar &epsilon = NumTraits<Scalar>::dummy_precision())
     : m_matrix(mat), m_reference(reference), m_epsilon(epsilon) {}
 
+  EIGEN_DEVICE_FUNC
   inline Index rows() const { return m_matrix.rows(); }
+  EIGEN_DEVICE_FUNC
   inline Index cols() const { return m_matrix.cols(); }
 
+  EIGEN_DEVICE_FUNC
   inline Index innerSize() const { return m_matrix.innerSize(); }
+  EIGEN_DEVICE_FUNC
   inline Index outerSize() const { return m_matrix.outerSize(); }
   
   /** \returns the nested expression */
+  EIGEN_DEVICE_FUNC
   const typename internal::remove_all<MatrixTypeNested>::type&
   nestedExpression() const { return m_matrix; }
   
+  EIGEN_DEVICE_FUNC
   Scalar reference() const { return m_reference; }
+  EIGEN_DEVICE_FUNC
   RealScalar epsilon() const { return m_epsilon; }
   
 protected:
@@ -87,19 +95,21 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased>
     typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
   public:
     typedef SparseView<ArgType> XprType;
-    
+
     class InnerIterator : public EvalIterator
     {
       protected:
         typedef typename XprType::Scalar Scalar;
       public:
 
+        EIGEN_DEVICE_FUNC
         EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& sve, Index outer)
           : EvalIterator(sve.m_argImpl,outer), m_view(sve.m_view)
         {
           incrementToNonZero();
         }
 
+        EIGEN_DEVICE_FUNC
         EIGEN_STRONG_INLINE InnerIterator& operator++()
         {
           EvalIterator::operator++();
@@ -113,6 +123,7 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased>
         const XprType &m_view;
 
       private:
+        EIGEN_DEVICE_FUNC
         void incrementToNonZero()
         {
           while((bool(*this)) && internal::isMuchSmallerThan(value(), m_view.reference(), m_view.epsilon()))
@@ -127,6 +138,7 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased>
       Flags = XprType::Flags
     };
     
+    EIGEN_DEVICE_FUNC
     explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
 
   protected:
@@ -150,12 +162,14 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
     {
       public:
 
+        EIGEN_DEVICE_FUNC
         EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& sve, Index outer)
           : m_sve(sve), m_inner(0), m_outer(outer), m_end(sve.m_view.innerSize())
         {
           incrementToNonZero();
         }
 
+        EIGEN_DEVICE_FUNC
         EIGEN_STRONG_INLINE InnerIterator& operator++()
         {
           m_inner++;
@@ -163,16 +177,21 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
           return *this;
         }
 
+        EIGEN_DEVICE_FUNC
         EIGEN_STRONG_INLINE Scalar value() const
         {
           return (IsRowMajor) ? m_sve.m_argImpl.coeff(m_outer, m_inner)
                               : m_sve.m_argImpl.coeff(m_inner, m_outer);
         }
 
+        EIGEN_DEVICE_FUNC
         EIGEN_STRONG_INLINE StorageIndex index() const { return m_inner; }
+        EIGEN_DEVICE_FUNC
         inline Index row() const { return IsRowMajor ? m_outer : index(); }
+        EIGEN_DEVICE_FUNC
         inline Index col() const { return IsRowMajor ? index() : m_outer; }
 
+        EIGEN_DEVICE_FUNC
         EIGEN_STRONG_INLINE operator bool() const { return m_inner < m_end && m_inner>=0; }
 
       protected:
@@ -182,6 +201,7 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
         const Index m_end;
 
       private:
+        EIGEN_DEVICE_FUNC
         void incrementToNonZero()
         {
           while((bool(*this)) && internal::isMuchSmallerThan(value(), m_sve.m_view.reference(), m_sve.m_view.epsilon()))
@@ -196,6 +216,7 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
       Flags = XprType::Flags
     };
     
+    EIGEN_DEVICE_FUNC
     explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
 
   protected:
@@ -223,6 +244,7 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
   *
   * \sa SparseMatrixBase::pruned(), class SparseView */
 template<typename Derived>
+EIGEN_DEVICE_FUNC
 const SparseView<Derived> MatrixBase<Derived>::sparseView(const Scalar& reference,
                                                           const typename NumTraits<Scalar>::Real& epsilon) const
 {
@@ -242,6 +264,7 @@ const SparseView<Derived> MatrixBase<Derived>::sparseView(const Scalar& referenc
   * where \c ref is a meaningful non zero reference value.
   * */
 template<typename Derived>
+EIGEN_DEVICE_FUNC
 const SparseView<Derived>
 SparseMatrixBase<Derived>::pruned(const Scalar& reference,
                                   const RealScalar& epsilon) const

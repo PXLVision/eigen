@@ -625,7 +625,7 @@ template<typename T, int Cols_, int Options_> class DenseStorage<T, Dynamic, Dyn
     }
     EIGEN_DEVICE_FUNC Index rows(void) const EIGEN_NOEXCEPT {return m_rows;}
     EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR Index cols(void) {return Cols_;}
-    void conservativeResize(Index size, Index rows, Index)
+    EIGEN_DEVICE_FUNC void conservativeResize(Index size, Index rows, Index)
     {
       m_data = internal::conditional_aligned_realloc_new_auto<T,(Options_&DontAlign)==0>(m_data, size, m_rows*Cols_);
       m_rows = rows;

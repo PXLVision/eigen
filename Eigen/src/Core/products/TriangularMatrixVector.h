@@ -26,11 +26,13 @@ struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,C
     HasUnitDiag = (Mode & UnitDiag)==UnitDiag,
     HasZeroDiag = (Mode & ZeroDiag)==ZeroDiag
   };
+  EIGEN_DEVICE_FUNC
   static EIGEN_DONT_INLINE  void run(Index _rows, Index _cols, const LhsScalar* _lhs, Index lhsStride,
                                      const RhsScalar* _rhs, Index rhsIncr, ResScalar* _res, Index resIncr, const RhsScalar& alpha);
 };
 
 template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int Version>
+EIGEN_DEVICE_FUNC
 EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,ColMajor,Version>
   ::run(Index _rows, Index _cols, const LhsScalar* _lhs, Index lhsStride,
         const RhsScalar* _rhs, Index rhsIncr, ResScalar* _res, Index resIncr, const RhsScalar& alpha)
@@ -97,11 +99,13 @@ struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,C
     HasUnitDiag = (Mode & UnitDiag)==UnitDiag,
     HasZeroDiag = (Mode & ZeroDiag)==ZeroDiag
   };
+  EIGEN_DEVICE_FUNC
   static EIGEN_DONT_INLINE void run(Index _rows, Index _cols, const LhsScalar* _lhs, Index lhsStride,
                                     const RhsScalar* _rhs, Index rhsIncr, ResScalar* _res, Index resIncr, const ResScalar& alpha);
 };
 
 template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs,int Version>
+EIGEN_DEVICE_FUNC
 EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,RowMajor,Version>
   ::run(Index _rows, Index _cols, const LhsScalar* _lhs, Index lhsStride,
         const RhsScalar* _rhs, Index rhsIncr, ResScalar* _res, Index resIncr, const ResScalar& alpha)
@@ -173,7 +177,9 @@ namespace internal {
 template<int Mode, typename Lhs, typename Rhs>
 struct triangular_product_impl<Mode,true,Lhs,false,Rhs,true>
 {
-  template<typename Dest> static void run(Dest& dst, const Lhs &lhs, const Rhs &rhs, const typename Dest::Scalar& alpha)
+  template<typename Dest>
+  EIGEN_DEVICE_FUNC
+  static void run(Dest& dst, const Lhs &lhs, const Rhs &rhs, const typename Dest::Scalar& alpha)
   {
     eigen_assert(dst.rows()==lhs.rows() && dst.cols()==rhs.cols());
   
@@ -184,7 +190,9 @@ struct triangular_product_impl<Mode,true,Lhs,false,Rhs,true>
 template<int Mode, typename Lhs, typename Rhs>
 struct triangular_product_impl<Mode,false,Lhs,true,Rhs,false>
 {
-  template<typename Dest> static void run(Dest& dst, const Lhs &lhs, const Rhs &rhs, const typename Dest::Scalar& alpha)
+  template<typename Dest>
+  EIGEN_DEVICE_FUNC
+  static void run(Dest& dst, const Lhs &lhs, const Rhs &rhs, const typename Dest::Scalar& alpha)
   {
     eigen_assert(dst.rows()==lhs.rows() && dst.cols()==rhs.cols());
 
@@ -204,6 +212,7 @@ namespace internal {
 template<int Mode> struct trmv_selector<Mode,ColMajor>
 {
   template<typename Lhs, typename Rhs, typename Dest>
+  EIGEN_DEVICE_FUNC
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)
   {
     typedef typename Lhs::Scalar      LhsScalar;
@@ -287,6 +296,7 @@ template<int Mode> struct trmv_selector<Mode,ColMajor>
 template<int Mode> struct trmv_selector<Mode,RowMajor>
 {
   template<typename Lhs, typename Rhs, typename Dest>
+  EIGEN_DEVICE_FUNC
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)
   {
     typedef typename Lhs::Scalar      LhsScalar;

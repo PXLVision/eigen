@@ -14,6 +14,7 @@ namespace Eigen {
   
 template<typename Derived>
 template<typename OtherDerived>
+EIGEN_DEVICE_FUNC
 bool SparseMatrixBase<Derived>::isApprox(const SparseMatrixBase<OtherDerived>& other, const RealScalar &prec) const
 {
   const typename internal::nested_eval<Derived,2,PlainObject>::type actualA(derived());

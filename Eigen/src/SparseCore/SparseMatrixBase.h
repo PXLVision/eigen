@@ -52,6 +52,7 @@ template<typename Derived> class SparseMatrixBase
     typedef Matrix<Scalar,Dynamic,1> ScalarVector;
     
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator=(const EigenBase<OtherDerived> &other);
 
     enum {
@@ -140,8 +141,11 @@ template<typename Derived> class SparseMatrixBase
     typedef Matrix<Scalar,EIGEN_SIZE_MAX(RowsAtCompileTime,ColsAtCompileTime),
                           EIGEN_SIZE_MAX(RowsAtCompileTime,ColsAtCompileTime)> SquareMatrixType;
 
+    EIGEN_DEVICE_FUNC
     inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
+    EIGEN_DEVICE_FUNC
     inline Derived& derived() { return *static_cast<Derived*>(this); }
+    EIGEN_DEVICE_FUNC
     inline Derived& const_cast_derived() const
     { return *static_cast<Derived*>(const_cast<SparseMatrixBase*>(this)); }
 
@@ -173,44 +177,57 @@ template<typename Derived> class SparseMatrixBase
 #undef EIGEN_DOC_BLOCK_ADDONS_INNER_PANEL_IF
 
     /** \returns the number of rows. \sa cols() */
-    inline Index rows() const { return derived().rows(); }
+    EIGEN_DEVICE_FUNC inline Index rows() const { return derived().rows(); }
     /** \returns the number of columns. \sa rows() */
+    EIGEN_DEVICE_FUNC
     inline Index cols() const { return derived().cols(); }
     /** \returns the number of coefficients, which is \a rows()*cols().
       * \sa rows(), cols(). */
+    EIGEN_DEVICE_FUNC
     inline Index size() const { return rows() * cols(); }
     /** \returns true if either the number of rows or the number of columns is equal to 1.
       * In other words, this function returns
       * \code rows()==1 || cols()==1 \endcode
       * \sa rows(), cols(), IsVectorAtCompileTime. */
+    EIGEN_DEVICE_FUNC
     inline bool isVector() const { return rows()==1 || cols()==1; }
     /** \returns the size of the storage major dimension,
       * i.e., the number of columns for a columns major matrix, and the number of rows otherwise */
+    EIGEN_DEVICE_FUNC
     Index outerSize() const { return (int(Flags)&RowMajorBit) ? this->rows() : this->cols(); }
     /** \returns the size of the inner dimension according to the storage order,
       * i.e., the number of rows for a columns major matrix, and the number of cols otherwise */
+    EIGEN_DEVICE_FUNC
     Index innerSize() const { return (int(Flags)&RowMajorBit) ? this->cols() : this->rows(); }
 
+    EIGEN_DEVICE_FUNC
     bool isRValue() const { return m_isRValue; }
+    EIGEN_DEVICE_FUNC
     Derived& markAsRValue() { m_isRValue = true; return derived(); }
 
+    EIGEN_DEVICE_FUNC
     SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */ }
 
     
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator=(const ReturnByValue<OtherDerived>& other);
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     inline Derived& operator=(const SparseMatrixBase<OtherDerived>& other);
 
+    EIGEN_DEVICE_FUNC
     inline Derived& operator=(const Derived& other);
 
   protected:
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     inline Derived& assign(const OtherDerived& other);
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     inline void assignGeneric(const OtherDerived& other);
 
   public:
@@ -265,21 +282,29 @@ template<typename Derived> class SparseMatrixBase
     }
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator+=(const SparseMatrixBase<OtherDerived>& other);
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator-=(const SparseMatrixBase<OtherDerived>& other);
     
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator+=(const DiagonalBase<OtherDerived>& other);
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator-=(const DiagonalBase<OtherDerived>& other);
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator+=(const EigenBase<OtherDerived> &other);
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator-=(const EigenBase<OtherDerived> &other);
 
+    EIGEN_DEVICE_FUNC
     Derived& operator*=(const Scalar& other);
+    EIGEN_DEVICE_FUNC
     Derived& operator/=(const Scalar& other);
 
     template<typename OtherDerived> struct CwiseProductDenseReturnType {
@@ -293,78 +318,99 @@ template<typename Derived> class SparseMatrixBase
     };
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const typename CwiseProductDenseReturnType<OtherDerived>::Type
     cwiseProduct(const MatrixBase<OtherDerived> &other) const;
 
     // sparse * diagonal
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     const Product<Derived,OtherDerived>
     operator*(const DiagonalBase<OtherDerived> &other) const
     { return Product<Derived,OtherDerived>(derived(), other.derived()); }
 
     // diagonal * sparse
     template<typename OtherDerived> friend
+    EIGEN_DEVICE_FUNC
     const Product<OtherDerived,Derived>
     operator*(const DiagonalBase<OtherDerived> &lhs, const SparseMatrixBase& rhs)
     { return Product<OtherDerived,Derived>(lhs.derived(), rhs.derived()); }
     
     // sparse * sparse
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     const Product<Derived,OtherDerived,AliasFreeProduct>
     operator*(const SparseMatrixBase<OtherDerived> &other) const;
     
     // sparse * dense
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     const Product<Derived,OtherDerived>
     operator*(const MatrixBase<OtherDerived> &other) const
     { return Product<Derived,OtherDerived>(derived(), other.derived()); }
     
     // dense * sparse
     template<typename OtherDerived> friend
+    EIGEN_DEVICE_FUNC
     const Product<OtherDerived,Derived>
     operator*(const MatrixBase<OtherDerived> &lhs, const SparseMatrixBase& rhs)
     { return Product<OtherDerived,Derived>(lhs.derived(), rhs.derived()); }
     
      /** \returns an expression of P H P^-1 where H is the matrix represented by \c *this */
+    EIGEN_DEVICE_FUNC
     SparseSymmetricPermutationProduct<Derived,Upper|Lower> twistedBy(const PermutationMatrix<Dynamic,Dynamic,StorageIndex>& perm) const
     {
       return SparseSymmetricPermutationProduct<Derived,Upper|Lower>(derived(), perm);
     }
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     Derived& operator*=(const SparseMatrixBase<OtherDerived>& other);
 
     template<int Mode>
+    EIGEN_DEVICE_FUNC
     inline const TriangularView<const Derived, Mode> triangularView() const;
     
     template<unsigned int UpLo> struct SelfAdjointViewReturnType { typedef SparseSelfAdjointView<Derived, UpLo> Type; };
     template<unsigned int UpLo> struct ConstSelfAdjointViewReturnType { typedef const SparseSelfAdjointView<const Derived, UpLo> Type; };
 
-    template<unsigned int UpLo> inline 
+    template<unsigned int UpLo>
+    EIGEN_DEVICE_FUNC inline
     typename ConstSelfAdjointViewReturnType<UpLo>::Type selfadjointView() const;
-    template<unsigned int UpLo> inline
+    template<unsigned int UpLo>
+    EIGEN_DEVICE_FUNC inline
     typename SelfAdjointViewReturnType<UpLo>::Type selfadjointView();
 
-    template<typename OtherDerived> Scalar dot(const MatrixBase<OtherDerived>& other) const;
-    template<typename OtherDerived> Scalar dot(const SparseMatrixBase<OtherDerived>& other) const;
-    RealScalar squaredNorm() const;
-    RealScalar norm()  const;
-    RealScalar blueNorm() const;
+    template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
+    Scalar dot(const MatrixBase<OtherDerived>& other) const;
+    template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
+    Scalar dot(const SparseMatrixBase<OtherDerived>& other) const;
+    EIGEN_DEVICE_FUNC RealScalar squaredNorm() const;
+    EIGEN_DEVICE_FUNC RealScalar norm()  const;
+    EIGEN_DEVICE_FUNC RealScalar blueNorm() const;
 
+    EIGEN_DEVICE_FUNC
     TransposeReturnType transpose() { return TransposeReturnType(derived()); }
+    EIGEN_DEVICE_FUNC
     const ConstTransposeReturnType transpose() const { return ConstTransposeReturnType(derived()); }
+    EIGEN_DEVICE_FUNC
     const AdjointReturnType adjoint() const { return AdjointReturnType(transpose()); }
 
+    EIGEN_DEVICE_FUNC
     DenseMatrixType toDense() const
     {
       return DenseMatrixType(derived());
     }
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     bool isApprox(const SparseMatrixBase<OtherDerived>& other,
                   const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
     template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
     bool isApprox(const MatrixBase<OtherDerived>& other,
                   const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const
     { return toDense().isApprox(other,prec); }
@@ -374,11 +420,14 @@ template<typename Derived> class SparseMatrixBase
       * Notice that in the case of a plain matrix or vector (not an expression) this function just returns
       * a const reference, in order to avoid a useless copy.
       */
+    EIGEN_DEVICE_FUNC
     inline const typename internal::eval<Derived>::type eval() const
     { return typename internal::eval<Derived>::type(derived()); }
 
+    EIGEN_DEVICE_FUNC
     Scalar sum() const;
     
+    EIGEN_DEVICE_FUNC
     inline const SparseView<Derived>
     pruned(const Scalar& reference = Scalar(0), const RealScalar& epsilon = NumTraits<Scalar>::dummy_precision()) const;
 
@@ -386,11 +435,14 @@ template<typename Derived> class SparseMatrixBase
 
     bool m_isRValue;
 
+    EIGEN_DEVICE_FUNC
     static inline StorageIndex convert_index(const Index idx) {
       return internal::convert_index<StorageIndex>(idx);
     }
   private:
-    template<typename Dest> void evalTo(Dest &) const;
+    template<typename Dest>
+    EIGEN_DEVICE_FUNC
+    void evalTo(Dest &) const;
 };
 
 } // end namespace Eigen

@@ -268,6 +268,12 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
       EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
       return operator()(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
     }
+
+#   if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    //Einstein notation
+    using TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> >::operator();
+#   endif
+
 #else
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Scalar& operator()(Index i0, Index i1)

@@ -76,6 +76,10 @@
 #include "src/Tensor/TensorIntDiv.h"
 #include "src/Tensor/TensorGlobalFunctions.h"
 
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+  #include "src/Tensor/TensorIndexed.h"
+#endif
+
 #include "src/Tensor/TensorBase.h"
 #include "src/Tensor/TensorBlock.h"
 

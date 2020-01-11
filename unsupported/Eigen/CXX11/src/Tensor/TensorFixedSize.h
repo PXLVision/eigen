@@ -230,6 +230,12 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
       EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
       return operator()(array<Index, NumIndices>{{firstIndex, otherIndices...}});
     }
+
+#   if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    //Einstein notation
+    using TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> >::operator();
+#   endif
+
 #else
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Scalar& operator()(Index i0, Index i1)

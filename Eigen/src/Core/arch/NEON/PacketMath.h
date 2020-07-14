@@ -1135,8 +1135,18 @@ template<> EIGEN_STRONG_INLINE Packet2ui pabsdiff<Packet2ui>(const Packet2ui& a,
 template<> EIGEN_STRONG_INLINE Packet4ui pabsdiff<Packet4ui>(const Packet4ui& a, const Packet4ui& b)
 { return vabdq_u32(a,b); }
 
-template<> EIGEN_STRONG_INLINE Packet2f pmin<Packet2f>(const Packet2f& a, const Packet2f& b) { return vmin_f32(a,b); }
-template<> EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) { return vminq_f32(a,b); }
+template<> EIGEN_STRONG_INLINE Packet2f pmin<Packet2f>(const Packet2f& a, const Packet2f& b)
+{
+  // return vmin_f32(a,b);
+  // Special handling of nan.
+  return vbsl_f32(vcgt_f32(a, b), b, a);
+}
+template<> EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b)
+{
+  // return vminq_f32(a,b);
+  // Special handling of nan.
+  return vbslq_f32(vcgtq_f32(a, b), b, a);
+}
 template<> EIGEN_STRONG_INLINE Packet4c pmin<Packet4c>(const Packet4c& a, const Packet4c& b)
 {
   return vget_lane_s32(vreinterpret_s32_s8(vmin_s8(
@@ -1172,8 +1182,18 @@ template<> EIGEN_STRONG_INLINE Packet2ul pmin<Packet2ul>(const Packet2ul& a, con
       vdup_n_u64((std::min)(vgetq_lane_u64(a, 1), vgetq_lane_u64(b, 1))));
 }
 
-template<> EIGEN_STRONG_INLINE Packet2f pmax<Packet2f>(const Packet2f& a, const Packet2f& b) { return vmax_f32(a,b); }
-template<> EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b) { return vmaxq_f32(a,b); }
+template<> EIGEN_STRONG_INLINE Packet2f pmax<Packet2f>(const Packet2f& a, const Packet2f& b)
+{
+  // return vmax_f32(a,b);
+  // Special handling of nan.
+  return vbsl_f32(vclt_f32(a, b), b, a);
+}
+template<> EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b)
+{
+  // return vmaxq_f32(a,b);
+  // Special handling of nan.
+  return vbslq_f32(vcltq_f32(a, b), b, a);
+}
 template<> EIGEN_STRONG_INLINE Packet4c pmax<Packet4c>(const Packet4c& a, const Packet4c& b)
 {
   return vget_lane_s32(vreinterpret_s32_s8(vmax_s8(
@@ -3325,9 +3345,19 @@ template<> EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d&
 { return vmlaq_f64(c,a,b); }
 #endif
 
-template<> EIGEN_STRONG_INLINE Packet2d pmin<Packet2d>(const Packet2d& a, const Packet2d& b) { return vminq_f64(a,b); }
+template<> EIGEN_STRONG_INLINE Packet2d pmin<Packet2d>(const Packet2d& a, const Packet2d& b)
+{
+  // return vminq_f64(a,b);
+  // Special handling of nan.
+  return vbslq_f64(vcgtq_f64(a, b), b, a);
+}
 
-template<> EIGEN_STRONG_INLINE Packet2d pmax<Packet2d>(const Packet2d& a, const Packet2d& b) { return vmaxq_f64(a,b); }
+template<> EIGEN_STRONG_INLINE Packet2d pmax<Packet2d>(const Packet2d& a, const Packet2d& b)
+{
+  // return vmaxq_f64(a,b);
+  // Special handling of nan.
+  return vbslq_f64(vcltq_f64(a, b), b, a);
+}
 
 template<> EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a)
 {

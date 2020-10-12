@@ -28,7 +28,7 @@ template<typename Packet> EIGEN_STRONG_INLINE Packet
 pfrexp_double(const Packet& a, Packet& exponent);
 
 template<typename Packet> EIGEN_STRONG_INLINE Packet
-pldexp_float(Packet a, Packet exponent);
+pldexp_float(const Packet& a, const Packet& exponent);
 
 /** \internal \returns log(x) for single precision float */
 template <typename Packet>

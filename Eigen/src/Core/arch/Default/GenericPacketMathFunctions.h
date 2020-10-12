@@ -40,30 +40,184 @@ pfrexp_double(const Packet& a, Packet& exponent) {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   const Packet cst_1022d = pset1<Packet>(1022.0);
   const Packet cst_half = pset1<Packet>(0.5);
-  const Packet cst_inv_mant_mask  = pset1frombits<Packet>(static_cast<uint64_t>(~0x7ff0000000000000ull));
+  const Packet cst_inv_mant_mask  = pset1frombits<Packet, uint64_t>(static_cast<uint64_t>(~0x7ff0000000000000ull));
   exponent = psub(pcast<PacketI,Packet>(plogical_shift_right<52>(preinterpret<PacketI>(pabs<Packet>(a)))), cst_1022d);
   return por(pand(a, cst_inv_mant_mask), cst_half);
 }
 
-template<typename Packet> EIGEN_STRONG_INLINE Packet
-pldexp_float(Packet a, Packet exponent)
-{
+// Safely applies ldexp, correctly handles overflows, underflows and denormals.
+// Assumes IEEE floating point format.
+template<typename Packet>
+struct pldexp_safe_impl {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  const Packet cst_127 = pset1<Packet>(127.f);
-  // return a * 2^exponent
-  PacketI ei = pcast<Packet,PacketI>(padd(exponent, cst_127));
-  return pmul(a, preinterpret<Packet>(plogical_shift_left<23>(ei)));
-}
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  typedef typename make_unsigned<ScalarI>::type Mask;
+  enum {
+    TotalBits = sizeof(Scalar) * CHAR_BIT,
+    MantissaBits = std::numeric_limits<Scalar>::digits - 1,
+    ExponentBits = int(TotalBits) - int(MantissaBits) - 1
+  };
+   
+  static EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_DEVICE_FUNC
+  Packet run(const Packet& a, const Packet& exponent) {
+    const Packet sign_mask = pset1frombits<Packet, Mask>(Mask(1) << (int(TotalBits) - 1));
+    const Packet fraction_mask = pset1frombits<Packet, Mask>( (Mask(1) << int(MantissaBits)) - 1);
+
+    // Normalize (a, e)
+    //   if |a| < min_value, set a_normal = |a| * 2^d, e = exponent - d,
+    //   otherwise,          set a_normal = |a|,       e = exponent
+    const Packet min_value = pset1frombits<Packet, Mask>(Mask(1) << int(MantissaBits));
+    const PacketI denormal_shift = pset1<PacketI>(-int(MantissaBits)-1);  // -d
+    const Packet a_sign = pand(a, sign_mask);
+    const Packet a_abs = pxor(a, a_sign);
+    const Packet a_is_denormal = pcmp_lt(a_abs, min_value);
+    const Packet a_normal = pselect(a_is_denormal, 
+                                    pmul(a_abs, pset1<Packet>(static_cast<Scalar>(Mask(1) << (int(MantissaBits) + 1)))), 
+                                    a_abs);
+    const PacketI cst_zeroi = pzero(denormal_shift);
+    PacketI e = padd(pcast<Packet, PacketI>(exponent), 
+                     pselect(preinterpret<PacketI>(a_is_denormal), denormal_shift, cst_zeroi));
+    
+    // Extract mantissa and exponent from a_normal
+    const Packet f = pand(a_normal, fraction_mask);
+    const PacketI a_exponent = plogical_shift_right<int(MantissaBits)>(preinterpret<PacketI>(a_normal));
+    
+    // Since a_normal is normal, a is zero iff a_exponent is zero.
+    //
+    // If a_exponent is zero, 
+    //    set e = 0, 
+    // If a_exponent is (2^ExponentBits-1), a is either inf or NaN, 
+    //    set e = a_exponent  (we don't want a negative exponent e to pull away)
+    // Otherwise 
+    //    set e = min(e + a_exponent, 2^ExponentBits-1)
+    //
+    // Note that e is now a biased exponent.
+    const PacketI max_exponent = pset1<PacketI>((ScalarI(1) << int(ExponentBits)) - 1);
+    e = pselect(pcmp_eq(a_exponent, cst_zeroi), cst_zeroi, 
+                pselect(pcmp_eq(a_exponent, max_exponent), max_exponent,
+                        pmin(padd(e, a_exponent), max_exponent)));
+    
+    // If e > 0, 
+    //    out = (a_sign | (e << MantissaBits) | a_fraction)
+    // If e <= -d,
+    //    out = (a_sign | 0 )
+    // Otherwise, we have a denormal
+    //    out =  (a_sign | (e + d << MantissaBits) | a_fraction) * 2^(-d)
+    const PacketI out_is_normal = pcmp_lt(cst_zeroi, e);
+    e = pselect(out_is_normal, e, psub(e, denormal_shift));
+    Packet out = por(f, preinterpret<Packet>(plogical_shift_left<int(MantissaBits)>(e)));
+    const Packet factor = pset1frombits<Packet, Mask>( ((Mask(1)<<(int(ExponentBits) - 1)) - int(MantissaBits) - 2) << int(MantissaBits));
+    out = pselect(preinterpret<Packet>(pcmp_le(e, cst_zeroi)), 
+                  pzero(a), 
+                  pselect(preinterpret<Packet>(out_is_normal), out, pmul(out, factor)));
+    return por(a_sign, out);
+  }
+};
+
+// Safely applies ldexp, correctly handles overflows, underflows and denormals.
+// Assumes IEEE floating point format.
+template<typename Packet>
+struct pldexp_fourmul_impl {
+  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  enum {
+    TotalBits = sizeof(Scalar) * CHAR_BIT,
+    MantissaBits = std::numeric_limits<Scalar>::digits - 1,
+    ExponentBits = int(TotalBits) - int(MantissaBits) - 1
+  };
+   
+  static EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_DEVICE_FUNC
+  Packet run(const Packet& a, const Packet& exponent) {
+    // Since 'a' and output can be denormal, valid range of exponent is
+    //   -255-23 -> 255+23
+    //
+    // Set e = max(min(exponent, 278), -278);
+    //
+    // To avoid overflows, we will divide the exponent by 4 and multiply by
+    // 4 factors:
+    //   b = floor(e/4)
+    //   out = ((((a * 2^(b)) * 2^(b)) * 2^(b)) * 2^(e-3*b))
+    // This will avoid any intermediate overflows and correctly handle 0, inf,
+    // NaN cases.
+    const PacketI max_exponent = pset1<PacketI>((ScalarI(1)<<int(ExponentBits)) + ScalarI(MantissaBits) - ScalarI(1));  // 278
+    const PacketI bias = pset1<PacketI>((ScalarI(1)<<(int(ExponentBits)-1)) - ScalarI(1));  // 127
+    const PacketI e = pmax(pmin(pcast<Packet, PacketI>(exponent), max_exponent), pnegate(max_exponent));
+    const PacketI b = parithmetic_shift_right<2>(e); // floor(e/4);
+    Packet c = preinterpret<Packet>(plogical_shift_left<int(MantissaBits)>(padd(b, bias)));  // 2^b
+    Packet out = pmul(pmul(pmul(a, c), c), c);  // a * 2^(3b)
+    c = preinterpret<Packet>(plogical_shift_left<int(MantissaBits)>(padd(psub(psub(psub(e, b), b), b), bias)));  // 2^(e-3*b)
+    out = pmul(out, c);
+    return out;
+  }
+};
+
+// Explicitly multiplies 
+//    a * 2^e
+// clamping e to the range
+// [std::numeric_limits<Scalar>::min_exponent-2, std::numeric_limits<Scalar>::max_exponent]
+//
+// This will prematurely over/under-flow if
+//    a is small, e is big
+//    a is big, e is small
+//
+// Assumes IEEE floating point format
+template<typename Packet>
+struct pldexp_clamp_impl {
+  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  enum {
+    TotalBits = sizeof(Scalar) * CHAR_BIT,
+    MantissaBits = std::numeric_limits<Scalar>::digits - 1,
+    ExponentBits = int(TotalBits) - int(MantissaBits) - 1
+  };
+  
+  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC
+  Packet run(const Packet& a, const Packet& exponent) {
+    const ScalarI scalar_bias = (ScalarI(1)<<(int(ExponentBits) - 1)) - ScalarI(1);
+    const PacketI bias = pset1<PacketI>(scalar_bias);   // 127 
+    const ScalarI scalar_limit = (ScalarI(1)<<int(ExponentBits)) - ScalarI(1);
+    const PacketI limit = pset1<PacketI>(scalar_limit); // 255
+    // restrict between 0 and 255
+    const PacketI e = pmin(pmax(padd(pcast<Packet,PacketI>(exponent), bias), pzero(limit)), limit); // e + 127
+    return pmul(a, preinterpret<Packet>(plogical_shift_left<int(MantissaBits)>(e)));
+  }
+};
+
+// Naively applies ldexp, assumes exponent is in the valid range of
+// [std::numeric_limits<Scalar>::min_exponent-2, std::numeric_limits<Scalar>::max_exponent]
+//
+// Assumes IEEE floating point format
+template<typename Packet>
+struct pldexp_unsafe_impl {
+  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  enum {
+    TotalBits = sizeof(Scalar) * CHAR_BIT,
+    MantissaBits = std::numeric_limits<Scalar>::digits - 1,
+    ExponentBits = int(TotalBits) - int(MantissaBits) - 1
+  };
+  
+  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC
+  Packet run(const Packet& a, const Packet& exponent) {
+    const ScalarI scalar_bias = (ScalarI(1)<<(int(ExponentBits) - 1)) - ScalarI(1);
+    const PacketI bias = pset1<PacketI>(scalar_bias);   // 127 
+    // restrict between 0 and 255
+    const PacketI e = padd(pcast<Packet,PacketI>(exponent), bias); // e + 127
+    return pmul(a, preinterpret<Packet>(plogical_shift_left<int(MantissaBits)>(e)));
+  }
+};
+
+template<typename Packet> EIGEN_STRONG_INLINE Packet
+pldexp_float(const Packet& a, const Packet& exponent)
+{ return pldexp_fourmul_impl<Packet>::run(a, exponent); }
 
 template<typename Packet> EIGEN_STRONG_INLINE Packet
 pldexp_double(Packet a, Packet exponent)
-{
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  const Packet cst_1023 = pset1<Packet>(1023.0);
-  // return a * 2^exponent
-  PacketI ei = pcast<Packet,PacketI>(padd(exponent, cst_1023));
-  return pmul(a, preinterpret<Packet>(plogical_shift_left<52>(ei)));
-}
+{ return pldexp_fourmul_impl<Packet>::run(a, exponent); }
 
 // Natural or base 2 logarithm.
 // Computes log(x) as log(2^e * m) = C*e + log(m), where the constant C =log(2)

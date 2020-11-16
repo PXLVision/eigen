@@ -217,19 +217,23 @@ template<> struct gemv_dense_selector<OnTheRight,ColMajor,true>
     typedef typename Rhs::Scalar   RhsScalar;
     typedef typename Dest::Scalar  ResScalar;
     typedef typename Dest::RealScalar  RealScalar;
-    
+
     typedef internal::blas_traits<Lhs> LhsBlasTraits;
     typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
     typedef internal::blas_traits<Rhs> RhsBlasTraits;
     typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-  
+
     typedef Map<Matrix<ResScalar,Dynamic,1>, EIGEN_PLAIN_ENUM_MIN(AlignedMax,internal::packet_traits<ResScalar>::size)> MappedDest;
 
     ActualLhsType actualLhs = LhsBlasTraits::extract(lhs);
     ActualRhsType actualRhs = RhsBlasTraits::extract(rhs);
 
-    ResScalar actualAlpha = alpha * LhsBlasTraits::extractScalarFactor(lhs)
-                                  * RhsBlasTraits::extractScalarFactor(rhs);
+    typedef internal::scalar_product_op<LhsScalar, RhsScalar> ScalarProductOp;
+    ScalarProductOp lr_prod_op;
+    internal::scalar_product_op<ResScalar, typename ScalarProductOp::result_type> alr_prod_op;
+    ResScalar actualAlpha = alr_prod_op(alpha,
+                                        lr_prod_op(LhsBlasTraits::extractScalarFactor(lhs)),
+                                                   RhsBlasTraits::extractScalarFactor(rhs));
 
     // make sure Dest is a compile-time vector type (bug 1166)
     typedef typename conditional<Dest::IsVectorAtCompileTime, Dest, typename Dest::ColXpr>::type ActualDest;
@@ -310,7 +314,7 @@ template<> struct gemv_dense_selector<OnTheRight,RowMajor,true>
     typedef typename Lhs::Scalar   LhsScalar;
     typedef typename Rhs::Scalar   RhsScalar;
     typedef typename Dest::Scalar  ResScalar;
-    
+
     typedef internal::blas_traits<Lhs> LhsBlasTraits;
     typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
     typedef internal::blas_traits<Rhs> RhsBlasTraits;
@@ -320,8 +324,12 @@ template<> struct gemv_dense_selector<OnTheRight,RowMajor,true>
     typename add_const<ActualLhsType>::type actualLhs = LhsBlasTraits::extract(lhs);
     typename add_const<ActualRhsType>::type actualRhs = RhsBlasTraits::extract(rhs);
 
-    ResScalar actualAlpha = alpha * LhsBlasTraits::extractScalarFactor(lhs)
-                                  * RhsBlasTraits::extractScalarFactor(rhs);
+    typedef internal::scalar_product_op<LhsScalar, RhsScalar> ScalarProductOp;
+    ScalarProductOp lr_prod_op;
+    internal::scalar_product_op<ResScalar, typename ScalarProductOp::result_type> alr_prod_op;
+    ResScalar actualAlpha = alr_prod_op(alpha,
+                                        lr_prod_op(LhsBlasTraits::extractScalarFactor(lhs)),
+                                                   RhsBlasTraits::extractScalarFactor(rhs));
 
     enum {
       // FIXME find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1

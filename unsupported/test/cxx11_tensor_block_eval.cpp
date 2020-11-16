@@ -399,19 +399,38 @@ static void test_eval_tensor_chipping() {
       [&chipped_dims]() { return RandomBlock<Layout>(chipped_dims, 1, 10); });
 }
 
+
+template<typename T, int NumDims>
+struct SimpleTensorGenerator {
+  T operator()(const array<Index, NumDims>& coords) const {
+    T result = static_cast<T>(0);
+    for (int i = 0; i < NumDims; ++i) {
+      result += static_cast<T>((i + 1) * coords[i]);
+    }
+    return result;
+  }
+};
+
+// Boolean specialization to avoid -Wint-in-bool-context warnings on GCC.
+template<int NumDims>
+struct SimpleTensorGenerator<bool, NumDims> {
+  bool operator()(const array<Index, NumDims>& coords) const {
+    bool result = false;
+    for (int i = 0; i < NumDims; ++i) {
+      result ^= coords[i];
+    }
+    return result;
+  }
+};
+
+
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_generator() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
-  auto generator = [](const array<Index, NumDims>& coords) -> T {
-    T result = static_cast<T>(0);
-    for (int i = 0; i < NumDims; ++i) {
-      result += static_cast<T>((i + 1) * coords[i]);
-    }
-    return result;
-  };
+  auto generator = SimpleTensorGenerator<T, NumDims>();
 
   VerifyBlockEvaluator<T, NumDims, Layout>(
       input.generate(generator), [&dims]() { return FixedSizeBlock(dims); });

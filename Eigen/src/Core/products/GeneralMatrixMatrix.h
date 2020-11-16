@@ -489,8 +489,12 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct>
     typename internal::add_const_on_value_type<ActualLhsType>::type lhs = LhsBlasTraits::extract(a_lhs);
     typename internal::add_const_on_value_type<ActualRhsType>::type rhs = RhsBlasTraits::extract(a_rhs);
 
-    Scalar actualAlpha = alpha * LhsBlasTraits::extractScalarFactor(a_lhs)
-                               * RhsBlasTraits::extractScalarFactor(a_rhs);
+    typedef internal::scalar_product_op<LhsScalar, RhsScalar> ScalarProductOp;
+    ScalarProductOp lr_prod_op;
+    internal::scalar_product_op<Scalar, typename ScalarProductOp::result_type> alr_prod_op;
+    Scalar actualAlpha = alr_prod_op(alpha,
+                                     lr_prod_op(LhsBlasTraits::extractScalarFactor(a_lhs)),
+                                                RhsBlasTraits::extractScalarFactor(a_rhs));
 
     typedef internal::gemm_blocking_space<(Dest::Flags&RowMajorBit) ? RowMajor : ColMajor,LhsScalar,RhsScalar,
             Dest::MaxRowsAtCompileTime,Dest::MaxColsAtCompileTime,MaxDepthAtCompileTime> BlockingType;

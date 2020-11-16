@@ -715,6 +715,15 @@ struct scalar_square_op {
   EIGEN_DEVICE_FUNC inline const Packet packetOp(const Packet& a) const
   { return internal::pmul(a,a); }
 };
+// Boolean specialization to avoid -Wint-in-bool-context warnings on GCC.
+template<>
+struct scalar_square_op<bool> {
+  EIGEN_EMPTY_STRUCT_CTOR(scalar_square_op)
+  EIGEN_DEVICE_FUNC inline bool operator() (const bool& a) const { return a; }
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC inline const Packet packetOp(const Packet& a) const
+  { return a; }
+};
 template<typename Scalar>
 struct functor_traits<scalar_square_op<Scalar> >
 { enum { Cost = NumTraits<Scalar>::MulCost, PacketAccess = packet_traits<Scalar>::HasMul }; };
@@ -730,6 +739,15 @@ struct scalar_cube_op {
   template<typename Packet>
   EIGEN_DEVICE_FUNC inline const Packet packetOp(const Packet& a) const
   { return internal::pmul(a,pmul(a,a)); }
+};
+// Boolean specialization to avoid -Wint-in-bool-context warnings on GCC.
+template<>
+struct scalar_cube_op<bool> {
+  EIGEN_EMPTY_STRUCT_CTOR(scalar_cube_op)
+  EIGEN_DEVICE_FUNC inline bool operator() (const bool& a) const { return a; }
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC inline const Packet packetOp(const Packet& a) const
+  { return a; }
 };
 template<typename Scalar>
 struct functor_traits<scalar_cube_op<Scalar> >

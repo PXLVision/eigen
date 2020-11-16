@@ -168,7 +168,7 @@ template<int SizeAtCompileType> void mixingtypes(int size = SizeAtCompileType)
 
   Mat_cd mcd2 = mcd;
   VERIFY_IS_APPROX(mcd.array() *= md.array(), mcd2.array() *= md.array().template cast<std::complex<double> >());
-  
+
   // check matrix-matrix products
   VERIFY_IS_APPROX(sd*md*mcd, (sd*md).template cast<CD>().eval()*mcd);
   VERIFY_IS_APPROX(sd*mcd*md, sd*mcd*md.template cast<CD>());
@@ -311,6 +311,8 @@ template<int SizeAtCompileType> void mixingtypes(int size = SizeAtCompileType)
 
 EIGEN_DECLARE_TEST(mixingtypes)
 {
+  EIGEN_UNUSED_VARIABLE(g_called) // Unused in SUBTEST_7.
+
   for(int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(mixingtypes<3>());
     CALL_SUBTEST_2(mixingtypes<4>());

@@ -97,6 +97,84 @@ struct functor_traits<scalar_product_op<LhsScalar,RhsScalar> > {
 template<>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool scalar_product_op<bool,bool>::operator() (const bool& a, const bool& b) const { return a && b; }
 
+/** \internal
+  * \brief Template functor to compute the product of two scalars and cast the result.
+  *
+  * This op will use scalar_product_op<LhsScalar,RhsScalar> if it exists, otherwise
+  * will fall back to operator* and cast the result.
+  *
+  */
+template<typename LhsScalar, typename RhsScalar, typename ResultScalar, bool HasProductOp = EIGEN_SCALAR_BINARY_SUPPORTED(product,LhsScalar,RhsScalar)>
+struct scalar_cast_product_op;
+
+template<typename LhsScalar, typename RhsScalar, typename ResultScalar>
+struct scalar_cast_product_op<LhsScalar,RhsScalar,ResultScalar,true>{
+  typedef ResultScalar result_type;
+  typedef scalar_product_op<LhsScalar,RhsScalar> ScalarProductOp;
+#ifndef EIGEN_SCALAR_BINARY_OP_PLUGIN
+  EIGEN_EMPTY_STRUCT_CTOR(scalar_cast_product_op)
+#else
+  scalar_cast_product_op() {
+    EIGEN_SCALAR_BINARY_OP_PLUGIN
+  }
+#endif
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+  ResultScalar operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return cast<typename ScalarProductOp::result_type,ResultScalar>(ScalarProductOp()(a, b));
+  }
+
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return ScalarProductOp().packetOp(a, b); }
+
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultScalar predux(const Packet& a) const
+  { return internal::cast<LhsScalar, ResultScalar>(ScalarProductOp().predux(a)); }
+};
+template<typename LhsScalar, typename RhsScalar, typename ResultScalar>
+struct functor_traits<scalar_cast_product_op<LhsScalar,RhsScalar,ResultScalar,true> > {
+  typedef functor_traits<scalar_product_op<LhsScalar,RhsScalar> > ScalarProductTraits;
+  enum {
+    Cost = ScalarProductTraits::Cost,
+    PacketAccess = EIGEN_SCALAR_BINARY_SUPPORTED(product, LhsScalar, RhsScalar)
+                   && ScalarProductTraits::PacketAccess
+  };
+};
+
+template<typename LhsScalar, typename RhsScalar, typename ResultScalar>
+struct scalar_cast_product_op<LhsScalar,RhsScalar,ResultScalar,false>{
+  typedef ResultScalar result_type;
+#ifndef EIGEN_SCALAR_BINARY_OP_PLUGIN
+  EIGEN_EMPTY_STRUCT_CTOR(scalar_cast_product_op)
+#else
+  scalar_cast_product_op() {
+    EIGEN_SCALAR_BINARY_OP_PLUGIN
+  }
+#endif
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+  ResultScalar operator()(const LhsScalar& a, const RhsScalar& b) const {
+    // TODO: ideally this would use internal::cast, but without auto/decltype we
+    //       cannot determine the return type of a * b.
+    return static_cast<ResultScalar>(a * b);
+  }
+
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pmul(a, b); }
+
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultScalar predux(const Packet& a) const
+  { return internal::cast<LhsScalar, ResultScalar>(internal::predux(a)); }
+};
+template<typename LhsScalar, typename RhsScalar, typename ResultScalar>
+struct functor_traits<scalar_cast_product_op<LhsScalar,RhsScalar,ResultScalar,false> > {
+  enum {
+    Cost = (NumTraits<LhsScalar>::MulCost + NumTraits<RhsScalar>::MulCost)/2, // rough estimate!
+    PacketAccess = is_same<LhsScalar,RhsScalar>::value && packet_traits<LhsScalar>::HasMul && packet_traits<RhsScalar>::HasMul
+  };
+};
 
 /** \internal
   * \brief Template functor to compute the conjugate product of two scalars
@@ -110,13 +188,13 @@ struct scalar_conj_product_op  : binary_op_base<LhsScalar,RhsScalar>
   enum {
     Conj = NumTraits<LhsScalar>::IsComplex
   };
-  
+
   typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_conj_product_op>::ReturnType result_type;
-  
+
   EIGEN_EMPTY_STRUCT_CTOR(scalar_conj_product_op)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator() (const LhsScalar& a, const RhsScalar& b) const
   { return conj_helper<LhsScalar,RhsScalar,Conj,false>().pmul(a,b); }
-  
+
   template<typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
   { return conj_helper<Packet,Packet,Conj,false>().pmul(a,b); }

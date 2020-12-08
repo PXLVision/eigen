@@ -96,6 +96,8 @@ typedef unsigned __int64 uint64_t;
 #include "src/Tensor/TensorIntDiv.h"
 #include "src/Tensor/TensorGlobalFunctions.h"
 
+#include "src/Tensor/TensorIO.h"
+
 #include "src/Tensor/TensorBase.h"
 #include "src/Tensor/TensorBlock.h"
 
@@ -149,7 +151,7 @@ typedef unsigned __int64 uint64_t;
 #include "src/Tensor/TensorMap.h"
 #include "src/Tensor/TensorRef.h"
 
-#include "src/Tensor/TensorIO.h"
+
 
 #include "../../../Eigen/src/Core/util/ReenableStupidWarnings.h"
 

@@ -954,6 +954,12 @@ class TensorBase<Derived, ReadOnlyAccessors>
       return TensorForcedEvalOp<const Derived>(derived());
     }
 
+    // Returns a formatted tensor ready for printing to a stream
+    inline const TensorWithFormat<Derived,DerivedTraits::Layout> format(const TensorIOFormat<NumDimensions>& fmt) const
+    {
+            return TensorWithFormat<Derived,DerivedTraits::Layout>(derived(), fmt);
+    }
+
   protected:
     template <typename Scalar, int NumIndices, int Options, typename IndexType> friend class Tensor;
     template <typename Scalar, typename Dimensions, int Option, typename IndexTypes> friend class TensorFixedSize;

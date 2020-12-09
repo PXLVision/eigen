@@ -1948,6 +1948,8 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
 #undef MICRO
         }
 */
+#include <cstdio>
+        printf("FUCK\n");
         for(; row + accCols <= rows; row += accCols)
         {
 #define MICRO() \

@@ -321,6 +321,7 @@ EIGEN_STRONG_INLINE void symm_pack_lhs_helper(Scalar *blockA, const Scalar* _lhs
   }
 }
 
+/*
 template<typename Index, int nr, int StorageOrder>
 struct symm_pack_rhs<std::complex<float>, Index, nr, StorageOrder>
 {
@@ -358,7 +359,7 @@ struct symm_pack_lhs<std::complex<double>, Index, Pack1, Pack2_dummy, StorageOrd
     symm_pack_complex_lhs_helper<double, Index, StorageOrder>(blockA, _lhs, lhsStride, cols, rows);
   }
 };
-
+*/
 // *********** symm_pack float32 ***********
 template<typename Index, int nr, int StorageOrder>
 struct symm_pack_rhs<float, Index, nr, StorageOrder>
@@ -407,7 +408,7 @@ struct symm_pack_lhs<double, Index, Pack1, Pack2_dummy, StorageOrder>
  * and the end as well respecting the real stride the block will have. Gebp is aware of both blocks stride
  * and offset and behaves accordingly.
  **/
-
+/*
 // General template for lhs complex packing.
 template<typename Scalar, bool IsComplex, typename Index, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct lhs_cpack {
@@ -582,7 +583,7 @@ struct lhs_cpack {
     if(PanelMode) ri += (rows - j)*(stride - offset - depth);
   }
 };
-
+*/
 // General template for lhs packing.
 template<typename Scalar, typename Index, typename DataMapper, typename Packet, int StorageOrder, bool PanelMode>
 struct lhs_pack{
@@ -658,6 +659,7 @@ struct lhs_pack{
 };
 
 // General template for rhs complex packing.
+/*
 template<typename Scalar, typename Index, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct rhs_cpack
 {
@@ -830,7 +832,7 @@ struct rhs_cpack
     if(PanelMode) ri += (cols - j)*(stride - offset - depth);
   }
 };
-
+*/
 // General template for rhs packing.
 template<typename Scalar, typename Index, typename DataMapper, typename Packet, int StorageOrder, bool PanelMode>
 struct rhs_pack {
@@ -1055,6 +1057,7 @@ struct rhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode>
 };
 
 // General template for lhs complex packing, float64 specialization.
+/*
 template<bool IsComplex, typename Index, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct lhs_cpack<double, IsComplex, Index, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode>
 {
@@ -1201,6 +1204,7 @@ struct lhs_cpack<double, IsComplex, Index, DataMapper, Packet, PacketC, StorageO
 };
 
 // General template for rhs complex packing, float64 specialization.
+
 template<typename Index, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct rhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode>
 {
@@ -1299,11 +1303,11 @@ struct rhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder, Conju
     if(PanelMode) ri += (cols - j)*(stride - offset - depth);
   }
 };
-
+*/
 /**************
  * GEMM utils *
  **************/
-
+/*
 // Grab two decouples real/imaginary PacketBlocks and return two coupled (real/imaginary pairs) PacketBlocks.
 template<typename Packet, typename Packetc>
 EIGEN_STRONG_INLINE void bcouple(PacketBlock<Packet,4>& taccReal, PacketBlock<Packet,4>& taccImag, PacketBlock<Packetc,8>& tRes, PacketBlock<Packetc, 4>& acc1, PacketBlock<Packetc, 4>& acc2)
@@ -1352,7 +1356,7 @@ EIGEN_STRONG_INLINE void bcouple<Packet2d, Packet1cd>(PacketBlock<Packet2d,4>& t
   acc2.packet[2] = padd<Packet1cd>(tRes.packet[6], acc2.packet[2]);
   acc2.packet[3] = padd<Packet1cd>(tRes.packet[7], acc2.packet[3]);
 }
-
+*/
 // 512-bits rank1-update of acc. It can either positive or negative accumulate (useful for complex gemm).
 template<typename Scalar, typename Packet, bool NegativeAccumulate>
 EIGEN_STRONG_INLINE void pger(PacketBlock<Packet, 4> *acc, const Scalar* lhs, const Scalar* rhs)
@@ -1378,6 +1382,7 @@ EIGEN_STRONG_INLINE void pger(PacketBlock<Packet, 4> *acc, const Scalar* lhs, co
 }
 
 // 512-bits rank1-update of complex acc. It takes decoupled accumulators as entries. It also takes cares of mixed types real * complex and complex * real.
+/*
 template<typename Scalar, typename Packet, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
 EIGEN_STRONG_INLINE void pgerc(PacketBlock<Packet, 4>& accReal, PacketBlock<Packet,4>& accImag, const Scalar *rhs_ptr, const Scalar *rhs_ptr_imag, const Scalar *lhs_ptr, const Scalar* lhs_ptr_imag, Packet& conj)
 {
@@ -1450,6 +1455,7 @@ EIGEN_STRONG_INLINE void pgerc(PacketBlock<Packet, 4>& accReal, PacketBlock<Pack
     accImag.packet[3] = pmadd<Packet>(rhsV4, lhsVi, accImag.packet[3]);
   }
 }
+*/
 
 // This is necessary because ploadRhs for double returns a pair of vectors when MMA is enabled.
 template<typename Scalar, typename Packet>
@@ -1485,6 +1491,7 @@ EIGEN_STRONG_INLINE void bscale(PacketBlock<Packet,4>& acc, PacketBlock<Packet,4
 }
 
 // Complex version of PacketBlock scaling.
+/*
 template<typename Packet>
 EIGEN_STRONG_INLINE void bscalec(PacketBlock<Packet,4>& aReal, PacketBlock<Packet,4>& aImag, const Packet& bReal, const Packet& bImag, PacketBlock<Packet,4>& cReal, PacketBlock<Packet,4>& cImag)
 {
@@ -1508,6 +1515,7 @@ EIGEN_STRONG_INLINE void bscalec(PacketBlock<Packet,4>& aReal, PacketBlock<Packe
   cImag.packet[2] = pmadd<Packet>(aReal.packet[2], bImag, cImag.packet[2]);
   cImag.packet[3] = pmadd<Packet>(aReal.packet[3], bImag, cImag.packet[3]);
 }
+*/
 
 // Load a PacketBlock, the N parameters make tunning gemm easier so we can add more accumulators as needed.
 template<typename DataMapper, typename Packet, typename Index, int N>
@@ -2058,6 +2066,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
     }
 }
 
+/*
 template<typename LhsScalar, typename RhsScalar, typename Scalarc, typename Scalar, typename Index, typename Packet, typename Packetc, typename RhsPacket, typename DataMapper, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
 EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* blockAc, const RhsScalar* blockBc,
           Index rows, Index depth, Index cols, Scalarc alpha, Index strideA, Index strideB, Index offsetA, Index offsetB, const int accRows, const int accCols)
@@ -2368,7 +2377,7 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
         }
       }
 }
-
+*/
 /************************************
  * ppc64le template specializations *
  * **********************************/
@@ -2455,6 +2464,7 @@ void gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Con
   lhs_pack<float, Index, DataMapper, Packet4f, ColMajor, PanelMode> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
+/*
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
 struct gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
 {
@@ -2482,6 +2492,7 @@ void gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet,
   lhs_cpack<float, true, Index, DataMapper, Packet4f, Packet2cf, ColMajor, Conjugate, PanelMode> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
+*/
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<float, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
@@ -2511,6 +2522,7 @@ void gemm_pack_rhs<float, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 
+/*
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
 {
@@ -2594,6 +2606,7 @@ void gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, RowMajor, Conjug
   rhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, RowMajor, Conjugate, PanelMode> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
+*/
 
 // ********* gebp specializations *********
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
@@ -2619,6 +2632,7 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
     gemm<float, Index, Packet, RhsPacket, DataMapper>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 
+/*
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<std::complex<float>, std::complex<float>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>
 {
@@ -2690,7 +2704,7 @@ void gebp_kernel<std::complex<float>, float, Index, DataMapper, mr, nr, Conjugat
 
     gemm_complex<std::complex<float>, float, std::complex<float>, float, Index, Packet, Packetc, RhsPacket, DataMapper, ConjugateLhs, ConjugateRhs, false, true>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
-
+*/
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>
 {
@@ -2713,7 +2727,7 @@ void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
 
     gemm<double, Index, Packet, RhsPacket, DataMapper>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
-
+/*
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<std::complex<double>, std::complex<double>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>
 {
@@ -2785,6 +2799,7 @@ void gebp_kernel<double, std::complex<double>, Index, DataMapper, mr, nr, Conjug
 
     gemm_complex<double, std::complex<double>, std::complex<double>, double, Index, Packet, Packetc, RhsPacket, DataMapper, ConjugateLhs, ConjugateRhs, true, false>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
+*/
 } // end namespace internal
 
 } // end namespace Eigen

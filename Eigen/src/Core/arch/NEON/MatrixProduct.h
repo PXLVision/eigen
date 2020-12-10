@@ -1565,7 +1565,6 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
         const Scalar *lhs_base = blockA;
 
         Index row = 0;
-/*
         for(; row + 6*accCols <= rows; row += 6*accCols)
         {
 #define MICRO() \
@@ -1947,7 +1946,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
           res.template storePacketBlock<Packet, 4>(row + 1*accCols, col, acc2);
 #undef MICRO
         }
-*/
+
         for(; row + accCols <= rows; row += accCols)
         {
 #define MICRO() \

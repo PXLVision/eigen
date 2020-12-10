@@ -2844,7 +2844,7 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
     const int accRows = quad_traits<float>::rows;
     const int accCols = quad_traits<float>::size;
 
-    gemm<float, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<float, Index, Packet, RhsPacket, DataMapper, 10, 20>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 
 /*
@@ -2940,7 +2940,7 @@ void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
     const int accRows = quad_traits<double>::rows;
     const int accCols = quad_traits<double>::size;
 
-    gemm<double, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<double, Index, Packet, RhsPacket, DataMapper, 10, 20>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 /*
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>

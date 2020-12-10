@@ -102,13 +102,13 @@ const static Packet16uc p16uc_SETCOMPLEX64_SECOND = {  8,  9, 10, 11, 12, 13, 14
 
 /**
  * Symm packing is related to packing of symmetric adjoint blocks, as expected the packing leaves
- * the diagonal real, whatever is below it is copied from the respective upper diagonal element and 
+ * the diagonal real, whatever is below it is copied from the respective upper diagonal element and
  * conjugated. There's no PanelMode available for symm packing.
  *
- * Packing in general is supposed to leave the lhs block and the rhs block easy to be read by gemm using 
+ * Packing in general is supposed to leave the lhs block and the rhs block easy to be read by gemm using
  * it's respective rank-update instructions. The float32/64 versions are different because at this moment
  * the size of the accumulator is fixed at 512-bits so you can't have a 4x4 accumulator of 64-bit elements.
- * 
+ *
  * As mentioned earlier MatrixProduct breaks complex numbers into a real vector and a complex vector so packing has
  * to take that into account, at the moment, we run pack the real part and then the imaginary part, this is the main
  * reason why packing for complex is broken down into several different parts, also the reason why we endup having a
@@ -400,7 +400,7 @@ struct symm_pack_lhs<double, Index, Pack1, Pack2_dummy, StorageOrder>
 
 /**
  * PanelMode
- * Packing might be called several times before being multiplied by gebp_kernel, this happens because 
+ * Packing might be called several times before being multiplied by gebp_kernel, this happens because
  * on special occasions it fills part of block with other parts of the matrix. Two variables control
  * how PanelMode should behave: offset and stride. The idea is that those variables represent whatever
  * is going to be the real offset and stride in the future and this is what you should obey. The process
@@ -477,7 +477,7 @@ struct lhs_cpack {
         ri += vectorSize;
       }
       if(PanelMode) ri += vectorSize*(stride - offset - depth);
-      
+
       i = 0;
 
       if(PanelMode) ri += vectorSize*offset;
@@ -1112,7 +1112,7 @@ struct lhs_cpack<double, IsComplex, Index, DataMapper, Packet, PacketC, StorageO
         ri += vectorSize;
       }
       if(PanelMode) ri += vectorSize*(stride - offset - depth);
-      
+
       i = 0;
 
       if(PanelMode) ri += vectorSize*offset;
@@ -1547,26 +1547,176 @@ EIGEN_STRONG_INLINE void bload(PacketBlock<Packet,8>& acc, const DataMapper& res
 /****************
  * GEMM kernels *
  * **************/
-/*
-template<typename Index, typename Scalar, typename Packet, int N>
+template<typename Index, typename Scalar, typename Packet, typename DataMapper, int N>
 struct Microkernel
 {
-  Microkernel<N-1> kernel;
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar* rhs_ptr, PacketBlock<Packet,4>& acc)
-  {
+    Microkernel<Index, Scalar,Packet, DataMapper, N-1> kernel;
+    const Scalar *lhs_ptr;
+    PacketBlock<Packet, 4> acc, accZero;
 
-  }
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void preamble(const DataMapper &res, const Scalar* lhs_base, const Index& row, const Index& col, const Index& strideA, const Index& offsetA, const int& accCols)
+    {
+        kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
+        lhs_ptr = lhs_base + ((row/accCols) + N)*strideA*accCols;
+
+        bload<DataMapper, Packet, Index, N>(acc, res, row, col, accCols);
+        bsetzero<Scalar, Packet>(accZero);
+
+        lhs_ptr += accCols*offsetA;
+    }
+
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar* rhs_ptr, const int& accCols)
+    {
+        kernel(rhs_ptr, accCols);
+        pger<Scalar, Packet, false>(&accZero, lhs_ptr, rhs_ptr);
+        lhs_ptr += accCols;
+    }
+
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void postamble(const DataMapper& res, const Index& row, const Index& col, const Packet& pAlpha, const int& accCols)
+    {
+        kernel.postamble(res, row, col, pAlpha, accCols);
+        bscale<Packet>(acc, accZero, pAlpha);
+        res.template storePacketBlock<Packet, 4>(row + N*accCols, col, acc);
+    }
 };
 
-template<typename Index, typename Scalar, typename Packet>
-struct Microkernel<Index, Scalar, Packet, -1>
+template<typename Index, typename Scalar, typename Packet, typename DataMapper>
+struct Microkernel<Index, Scalar, Packet, DataMapper, -1>
 {
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()()
-  {
-
-  }
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void preamble(const DataMapper&, const Scalar*, const Index&, const Index&, const Index&, const Index&, const int&) {}
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar*, const int&) {}
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void postamble(const DataMapper& res, const Index& row, const Index& col, const Packet& pAlpha, const int&) {}
 };
-*/
+
+template<typename Index, typename Scalar, typename Packet, typename DataMapper, int N, int M>
+struct PeelKernel
+{
+    PeelKernel<Index, Scalar, Packet, DataMapper, N, M - 1> peel_kernel;
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void peel(Microkernel<Index, Scalar, Packet, DataMapper, N>& kernel, const Scalar* rhs_ptr, const int& accCols) const
+    {
+        peel_kernel.peel(kernel, rhs_ptr, accCols);
+        kernel(rhs_ptr, accCols);
+    }
+};
+
+template<typename Index, typename Scalar, typename Packet, typename DataMapper, int N>
+struct PeelKernel<Index, Scalar, Packet, DataMapper, N, -1>
+{
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void peel(Microkernel<Index, Scalar, Packet, DataMapper, N>&, const Scalar*, const int&) const {}
+};
+
+template<typename Scalar, typename Index, typename Packet, typename RhsPacket, typename DataMapper>
+EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB,
+          Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB, const int& accRows, const int& accCols)
+{
+      const Index remaining_rows = rows % accCols;
+      const Index remaining_cols = cols % accRows;
+
+      if( strideA == -1 ) strideA = depth;
+      if( strideB == -1 ) strideB = depth;
+
+      const Packet pAlpha = pset1<Packet>(alpha);
+      Index col = 0;
+      for(; col + accRows <= cols; col += accRows)
+      {
+        const Scalar *rhs_base = blockB + ( col/accRows     )*strideB*accRows;
+        const Scalar *lhs_base = blockA;
+
+        Index row = 0;
+        for(; row + accCols <= rows; row += accCols)
+        {
+          Microkernel<Index, Scalar, Packet, DataMapper, 0> kernel;
+          const Scalar *rhs_ptr  = rhs_base;
+          kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
+          rhs_ptr += accRows*offsetB;
+          Index k = 0;
+          /*
+          for(; k + PEEL < depth; k+= PEEL)
+          {
+          }*/
+          for(; k < depth; k++)
+          {
+            PeelKernel<Index, Scalar, Packet, DataMapper, 0, 0> peel_kernel;
+            peel_kernel.peel(kernel, rhs_ptr, accCols);
+            rhs_ptr += accRows;
+          }
+
+          kernel.postamble(res, row, col, pAlpha, accCols);
+        }
+
+        if(remaining_rows > 0)
+        {
+          const Scalar *rhs_ptr  = rhs_base;
+          const Scalar *lhs_ptr = lhs_base + (row/accCols)*strideA*accCols;
+
+          lhs_ptr += remaining_rows*offsetA;
+          rhs_ptr += accRows*offsetB;
+          for(Index k = 0; k < depth; k++)
+          {
+              for(Index arow = 0; arow < remaining_rows; arow++)
+              {
+                  for(Index acol = 0; acol < accRows; acol++ )
+                  {
+                    res(row + arow, col + acol) += alpha*lhs_ptr[arow]*rhs_ptr[acol];
+                  }
+              }
+              rhs_ptr += accRows;
+              lhs_ptr += remaining_rows;
+          }
+        }
+    }
+
+    if(remaining_cols > 0)
+    {
+      const Scalar *rhs_base = blockB + (col/accRows)*strideB*accRows;
+      const Scalar *lhs_base = blockA;
+
+      Index row = 0;
+      for(; row + accCols <= rows; row += accCols)
+      {
+        const Scalar *rhs_ptr = rhs_base;
+        const Scalar *lhs_ptr = lhs_base + (row/accCols)*strideA*accCols;
+
+        lhs_ptr += accCols*offsetA;
+        rhs_ptr += remaining_cols*offsetB;
+        for(Index k = 0; k < depth; k++)
+        {
+          for(Index arow = 0; arow < accCols; arow++)
+          {
+            for(Index acol = 0; acol < remaining_cols; acol++ )
+            {
+              res(row + arow, col + acol) += alpha*lhs_ptr[arow]*rhs_ptr[acol];
+            }
+          }
+          rhs_ptr += remaining_cols;
+          lhs_ptr += accCols;
+        }
+      }
+
+      if(remaining_rows > 0 )
+      {
+        const Scalar *rhs_ptr  = rhs_base;
+        const Scalar *lhs_ptr = lhs_base + (row/accCols)*strideA*accCols;
+
+        lhs_ptr += remaining_rows*offsetA;
+        rhs_ptr += remaining_cols*offsetB;
+        for(Index k = 0; k < depth; k++)
+        {
+            for(Index arow = 0; arow < remaining_rows; arow++)
+            {
+                for(Index acol = 0; acol < remaining_cols; acol++ )
+                {
+                  res(row + arow, col + acol) += alpha*lhs_ptr[arow]*rhs_ptr[acol];
+                }
+            }
+            rhs_ptr += remaining_cols;
+            lhs_ptr += remaining_rows;
+        }
+      }
+    }
+}
+
+/*
 template<typename Scalar, typename Index, typename Packet, typename RhsPacket, typename DataMapper>
 EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB,
           Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB, const int accRows, const int accCols)
@@ -1922,7 +2072,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
           const Scalar *rhs_ptr  = rhs_base;
           const Scalar *lhs_ptr1 = lhs_base + (row/accCols      )*strideA*accCols;
           const Scalar *lhs_ptr2 = lhs_base + ((row/accCols) + 1)*strideA*accCols;
-          
+
           PacketBlock<Packet,4> acc1, accZero1;
           PacketBlock<Packet,4> acc2, accZero2;
 
@@ -1966,7 +2116,6 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
           res.template storePacketBlock<Packet, 4>(row + 1*accCols, col, acc2);
 #undef MICRO
         }
-
         for(; row + accCols <= rows; row += accCols)
         {
 #define MICRO() \
@@ -2062,7 +2211,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
           lhs_ptr += accCols;
         }
       }
-      
+
       if(remaining_rows > 0 )
       {
         const Scalar *rhs_ptr  = rhs_base;
@@ -2085,6 +2234,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
       }
     }
 }
+*/
 
 /*
 template<typename LhsScalar, typename RhsScalar, typename Scalarc, typename Scalar, typename Index, typename Packet, typename Packetc, typename RhsPacket, typename DataMapper, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
@@ -2127,7 +2277,7 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
             if(!LhsIsReal) \
               lhs_ptr_imag1 += accCols; \
             if(!RhsIsReal) \
-              rhs_ptr_imag += accRows; 
+              rhs_ptr_imag += accRows;
 
           const Scalar *rhs_ptr  = rhs_base;
           const Scalar *rhs_ptr_imag = rhs_ptr + accRows*strideB;
@@ -2208,7 +2358,7 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
                 lhsc.real(lhs_real);
                 if(!LhsIsReal)
                 {
-                  if(ConjugateLhs) 
+                  if(ConjugateLhs)
                     lhsc.imag(-lhs_imag);
                   else
                     lhsc.imag(lhs_imag);
@@ -2282,7 +2432,7 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
             {
               Scalar lhs_real = lhs_ptr[arow];
               Scalar lhs_imag;
-              if(!LhsIsReal) 
+              if(!LhsIsReal)
               {
                 lhs_imag = lhs_ptr_imag[arow];
 
@@ -2359,7 +2509,7 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
               lhsc.real(lhs_real);
               if(!LhsIsReal)
               {
-                if(ConjugateLhs) 
+                if(ConjugateLhs)
                   lhsc.imag(-lhs_imag);
                 else
                   lhsc.imag(lhs_imag);

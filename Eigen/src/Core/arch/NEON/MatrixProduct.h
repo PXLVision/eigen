@@ -1547,6 +1547,26 @@ EIGEN_STRONG_INLINE void bload(PacketBlock<Packet,8>& acc, const DataMapper& res
 /****************
  * GEMM kernels *
  * **************/
+/*
+template<typename Index, typename Scalar, typename Packet, int N>
+struct Microkernel
+{
+  Microkernel<N-1> kernel;
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar* rhs_ptr, PacketBlock<Packet,4>& acc)
+  {
+
+  }
+};
+
+template<typename Index, typename Scalar, typename Packet>
+struct Microkernel<Index, Scalar, Packet, -1>
+{
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()()
+  {
+
+  }
+};
+*/
 template<typename Scalar, typename Index, typename Packet, typename RhsPacket, typename DataMapper>
 EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB,
           Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB, const int accRows, const int accCols)

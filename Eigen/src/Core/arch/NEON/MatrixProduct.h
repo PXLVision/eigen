@@ -1582,7 +1582,7 @@ struct Microkernel<Index, Scalar, Packet, DataMapper, -1>
 {
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void preamble(const DataMapper&, const Scalar*, const Index&, const Index&, const Index&, const Index&, const int&) {}
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar*, const int&) {}
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void postamble(const DataMapper& res, const Index& row, const Index& col, const Packet& pAlpha, const int&) {}
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void postamble(const DataMapper&, const Index&, const Index&, const Packet&, const int&) {}
 };
 
 template<typename Index, typename Scalar, typename Packet, typename DataMapper, int N, int M>
@@ -1652,20 +1652,20 @@ struct KernelOutterLoop
 template<typename Index, typename Scalar, typename Packet, typename DataMapper, int PEEL_DEPTH>
 struct KernelOutterLoop<Index, Scalar, Packet, DataMapper, PEEL_DEPTH, 0>
 {
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar *rhs_base,
-                                                        const Scalar *lhs_base,
-                                                        const Index& strideA,
-                                                        const Index& strideB,
-                                                        const Index& offsetA,
-                                                        const Index& offsetB,
-                                                        const Index& col,
-                                                        const DataMapper& res,
-                                                        const Packet& pAlpha,
-                                                        const int& accCols,
-                                                        const int& accRows,
-                                                        const Index& rows,
-                                                        const Index& depth,
-                                                        Index& row){}
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar*,
+                                                        const Scalar*,
+                                                        const Index&,
+                                                        const Index&,
+                                                        const Index&,
+                                                        const Index&,
+                                                        const Index&,
+                                                        const DataMapper&,
+                                                        const Packet&,
+                                                        const int&,
+                                                        const int&,
+                                                        const Index&,
+                                                        const Index&,
+                                                        Index&){}
 };
 
 template<typename Scalar, typename Index, typename Packet, typename RhsPacket, typename DataMapper, int PEEL, int PEEL_DEPTH>

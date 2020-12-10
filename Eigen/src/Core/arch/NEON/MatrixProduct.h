@@ -1541,9 +1541,6 @@ EIGEN_STRONG_INLINE void bload(PacketBlock<Packet,8>& acc, const DataMapper& res
   acc.packet[7] = res.template loadPacket<Packet>(row + (N+1)*accCols, col + 3);
 }
 
-// PEEL loop factor.
-#define PEEL 10
-
 /****************
  * GEMM kernels *
  * **************/
@@ -1592,20 +1589,86 @@ template<typename Index, typename Scalar, typename Packet, typename DataMapper, 
 struct PeelKernel
 {
     PeelKernel<Index, Scalar, Packet, DataMapper, N, M - 1> peel_kernel;
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void peel(Microkernel<Index, Scalar, Packet, DataMapper, N>& kernel, const Scalar* rhs_ptr, const int& accCols) const
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void peel(Microkernel<Index, Scalar, Packet, DataMapper, N>& kernel, const Scalar* &rhs_ptr, const int& accCols, const int& accRows) const
     {
-        peel_kernel.peel(kernel, rhs_ptr, accCols);
+        peel_kernel.peel(kernel, rhs_ptr, accCols, accRows);
         kernel(rhs_ptr, accCols);
+        rhs_ptr += accRows;
     }
 };
 
 template<typename Index, typename Scalar, typename Packet, typename DataMapper, int N>
 struct PeelKernel<Index, Scalar, Packet, DataMapper, N, -1>
 {
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void peel(Microkernel<Index, Scalar, Packet, DataMapper, N>&, const Scalar*, const int&) const {}
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void peel(Microkernel<Index, Scalar, Packet, DataMapper, N>&, const Scalar*&, const int&, const int&) const {}
 };
 
-template<typename Scalar, typename Index, typename Packet, typename RhsPacket, typename DataMapper>
+template<typename Index, typename Scalar, typename Packet, typename DataMapper, int PEEL_DEPTH, int PEEL>
+struct KernelOutterLoop
+{
+  KernelOutterLoop<Index, Scalar, Packet, DataMapper, PEEL_DEPTH, PEEL-1> kernel_outter_loop;
+
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar *rhs_base,
+                                                        const Scalar *lhs_base,
+                                                        const Index& strideA,
+                                                        const Index& strideB,
+                                                        const Index& offsetA,
+                                                        const Index& offsetB,
+                                                        const Index& col,
+                                                        const DataMapper& res,
+                                                        const Packet& pAlpha,
+                                                        const int& accCols,
+                                                        const int& accRows,
+                                                        const Index& rows,
+                                                        const Index& depth,
+                                                        Index& row)
+  {
+    for(; row + PEEL*accCols <= rows; row += PEEL*accCols)
+    {
+      Microkernel<Index, Scalar, Packet, DataMapper, PEEL-1> kernel;
+      const Scalar *rhs_ptr  = rhs_base;
+
+      kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
+
+      rhs_ptr += accRows*offsetB;
+      Index k = 0;
+      for(; k + PEEL_DEPTH < depth; k+= PEEL_DEPTH)
+      {
+        PeelKernel<Index, Scalar, Packet, DataMapper, PEEL-1, PEEL_DEPTH-1> peel_kernel;
+        peel_kernel.peel(kernel, rhs_ptr, accCols, accRows);
+      }
+      for(; k < depth; k++)
+      {
+        kernel(rhs_ptr, accCols);
+        rhs_ptr += accRows;
+      }
+
+      kernel.postamble(res, row, col, pAlpha, accCols);
+    }
+    kernel_outter_loop(rhs_base, lhs_base, strideA, strideB, offsetA, offsetB, col, res, pAlpha, accCols, accRows, rows, depth, row);
+  }
+};
+
+template<typename Index, typename Scalar, typename Packet, typename DataMapper, int PEEL_DEPTH>
+struct KernelOutterLoop<Index, Scalar, Packet, DataMapper, PEEL_DEPTH, 0>
+{
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar *rhs_base,
+                                                        const Scalar *lhs_base,
+                                                        const Index& strideA,
+                                                        const Index& strideB,
+                                                        const Index& offsetA,
+                                                        const Index& offsetB,
+                                                        const Index& col,
+                                                        const DataMapper& res,
+                                                        const Packet& pAlpha,
+                                                        const int& accCols,
+                                                        const int& accRows,
+                                                        const Index& rows,
+                                                        const Index& depth,
+                                                        Index& row){}
+};
+
+template<typename Scalar, typename Index, typename Packet, typename RhsPacket, typename DataMapper, int PEEL, int PEEL_DEPTH>
 EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB,
           Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB, const int& accRows, const int& accCols)
 {
@@ -1619,30 +1682,12 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
       Index col = 0;
       for(; col + accRows <= cols; col += accRows)
       {
-        const Scalar *rhs_base = blockB + ( col/accRows     )*strideB*accRows;
+        const Scalar *rhs_base = blockB + ( col/accRows )*strideB*accRows;
         const Scalar *lhs_base = blockA;
 
         Index row = 0;
-        for(; row + accCols <= rows; row += accCols)
-        {
-          Microkernel<Index, Scalar, Packet, DataMapper, 0> kernel;
-          const Scalar *rhs_ptr  = rhs_base;
-          kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
-          rhs_ptr += accRows*offsetB;
-          Index k = 0;
-          /*
-          for(; k + PEEL < depth; k+= PEEL)
-          {
-          }*/
-          for(; k < depth; k++)
-          {
-            PeelKernel<Index, Scalar, Packet, DataMapper, 0, 0> peel_kernel;
-            peel_kernel.peel(kernel, rhs_ptr, accCols);
-            rhs_ptr += accRows;
-          }
-
-          kernel.postamble(res, row, col, pAlpha, accCols);
-        }
+        KernelOutterLoop<Index, Scalar, Packet, DataMapper, PEEL_DEPTH, PEEL> kernel_outter_loop;
+        kernel_outter_loop(rhs_base, lhs_base, strideA, strideB, offsetA, offsetB, col, res, pAlpha, accCols, accRows, rows, depth, row);
 
         if(remaining_rows > 0)
         {
@@ -2799,7 +2844,7 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
     const int accRows = quad_traits<float>::rows;
     const int accCols = quad_traits<float>::size;
 
-    gemm<float, Index, Packet, RhsPacket, DataMapper>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<float, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 
 /*
@@ -2895,7 +2940,7 @@ void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
     const int accRows = quad_traits<double>::rows;
     const int accCols = quad_traits<double>::size;
 
-    gemm<double, Index, Packet, RhsPacket, DataMapper>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<double, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 /*
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>

@@ -1359,7 +1359,7 @@ EIGEN_STRONG_INLINE void bcouple<Packet2d, Packet1cd>(PacketBlock<Packet2d,4>& t
 */
 // 512-bits rank1-update of acc. It can either positive or negative accumulate (useful for complex gemm).
 template<typename Scalar, typename Packet, bool NegativeAccumulate>
-EIGEN_STRONG_INLINE void pger(PacketBlock<Packet, 4> *acc, const Scalar* lhs, const Scalar* rhs)
+EIGEN_ALWAYS_INLINE void pger(PacketBlock<Packet, 4> *acc, const Scalar* lhs, const Scalar* rhs)
 {
   Packet lhsV = *((Packet *) lhs);
   Packet rhsV1 = pset1<Packet>(rhs[0]);
@@ -1457,19 +1457,6 @@ EIGEN_STRONG_INLINE void pgerc(PacketBlock<Packet, 4>& accReal, PacketBlock<Pack
 }
 */
 
-// This is necessary because ploadRhs for double returns a pair of vectors when MMA is enabled.
-template<typename Scalar, typename Packet>
-EIGEN_STRONG_INLINE Packet ploadRhs(const Scalar *rhs)
-{
-    return *((Packet *)rhs);
-}
-
-template<typename Scalar, typename Packet>
-EIGEN_STRONG_INLINE Packet ploadLhs(const Scalar *lhs)
-{
-    return *((Packet *)lhs);
-}
-
 // Zero the accumulator on PacketBlock.
 template<typename Scalar, typename Packet>
 EIGEN_STRONG_INLINE void bsetzero(PacketBlock<Packet,4>& acc)
@@ -1527,7 +1514,7 @@ EIGEN_STRONG_INLINE void bload(PacketBlock<Packet,4>& acc, const DataMapper& res
   acc.packet[3] = res.template loadPacket<Packet>(row + N*accCols, col + 3);
 }
 
-// An overload of bload when you have a PacketBLock with 8 vectors.
+// An overload of bload when you have a PacketBlock with 8 vectors.
 template<typename DataMapper, typename Packet, typename Index, int N>
 EIGEN_STRONG_INLINE void bload(PacketBlock<Packet,8>& acc, const DataMapper& res, Index row, Index col, Index accCols)
 {
@@ -1686,6 +1673,8 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
         const Scalar *lhs_base = blockA;
 
         Index row = 0;
+        prefetch(rhs_base);
+        prefetch(lhs_base);
         KernelOutterLoop<Index, Scalar, Packet, DataMapper, PEEL_DEPTH, PEEL> kernel_outter_loop;
         kernel_outter_loop(rhs_base, lhs_base, strideA, strideB, offsetA, offsetB, col, res, pAlpha, accCols, accRows, rows, depth, row);
 
@@ -2844,7 +2833,7 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
     const int accRows = quad_traits<float>::rows;
     const int accCols = quad_traits<float>::size;
 
-    gemm<float, Index, Packet, RhsPacket, DataMapper, 10, 20>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<float, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 
 /*
@@ -2940,7 +2929,7 @@ void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
     const int accRows = quad_traits<double>::rows;
     const int accCols = quad_traits<double>::size;
 
-    gemm<double, Index, Packet, RhsPacket, DataMapper, 10, 20>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<double, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 /*
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>

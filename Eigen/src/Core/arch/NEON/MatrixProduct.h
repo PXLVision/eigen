@@ -1578,7 +1578,7 @@ struct Microkernel
     {
         kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
         lhs_ptr = lhs_base + ((row/accCols) + N)*strideA*accCols;
-        //prefetch(lhs_ptr + 1);
+        //prefetch(lhs_ptr);
 
         bload<DataMapper, Packet, Index, N>(acc, res, row, col, accCols);
         bsetzero<Scalar, Packet>(accZero);
@@ -1658,25 +1658,38 @@ struct KernelOutterLoop
       Microkernel<Index, Scalar, Packet, DataMapper, PEEL-1> kernel;
       const Scalar *rhs_ptr = rhs_base;
       //__asm__("#prefetchme\n\t");
-      //prefetch(rhs_ptr + accRows*offsetB);
+      //prefetch(rhs_ptr);// + accRows*offsetB);
       //__asm__("#prefetchme2\n\t");
       //prefetch(&res(row + PEEL*accCols,col));
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 1*accCols,col));
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 2*accCols,col));
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 3*accCols,col));
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 4*accCols,col));
+
+      /*
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 0*accCols,col + 0*accRows));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 1*accCols,col + 0*accRows));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 2*accCols,col + 0*accRows));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 3*accCols,col + 0*accRows));
+      */
+
       //prefetch(lhs_base + ((row/accCols))*strideA*accCols);
 
 
+      //prefetch(rhs_ptr);
       kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
 
       rhs_ptr += accRows*offsetB;
       Index k = 0;
       for(; k + PEEL_DEPTH < depth; k+= PEEL_DEPTH)
       {
+        prefetch(rhs_ptr + accRows);
+        prefetch(lhs_base + ((row/accCols))*strideA*accCols + (k + PEEL_DEPTH)*accCols);
         PeelKernel<Index, Scalar, Packet, DataMapper, PEEL-1, PEEL_DEPTH-1> peel_kernel;
         peel_kernel.peel(kernel, rhs_ptr, accCols, accRows);
       }
+
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 0*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 1*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 2*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 3*accCols,col));
+
       for(; k < depth; k++)
       {
         kernel(rhs_ptr, accCols);
@@ -2888,7 +2901,7 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
     const int accRows = quad_traits<float>::rows;
     const int accCols = quad_traits<float>::size;
 
-    gemm<float, Index, Packet, RhsPacket, DataMapper, 8, 12>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<float, Index, Packet, RhsPacket, DataMapper, 4, 9>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 
 /*

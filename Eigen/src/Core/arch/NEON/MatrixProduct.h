@@ -26,17 +26,19 @@ namespace internal {
  **************************/
 const int QuadRegisterCount = 8;
 
+#define BLOCK_SIZE 4
+
 template<typename Scalar>
 struct quad_traits
 {
   typedef typename packet_traits<Scalar>::type    vectortype;
-  typedef PacketBlock<vectortype, 4>                    type;
+  typedef PacketBlock<vectortype, BLOCK_SIZE>                    type;
   typedef vectortype                                 rhstype;
   enum
   {
     vectorsize = packet_traits<Scalar>::size,
     size = 4,
-    rows = 4
+    rows = BLOCK_SIZE
   };
 };
 
@@ -50,7 +52,7 @@ struct quad_traits<double>
   {
     vectorsize = packet_traits<double>::size,
     size = 2,
-    rows = 4
+    rows = BLOCK_SIZE
   };
 };
 
@@ -398,6 +400,36 @@ struct symm_pack_lhs<double, Index, Pack1, Pack2_dummy, StorageOrder>
   }
 };
 
+template<typename DataMapper, typename Packet, typename Index, int StorageOrder, int BlockSize, int Idx>
+struct BlockLoad
+{
+  BlockLoad<DataMapper, Packet, Index, StorageOrder, BlockSize, Idx-1> blockLoad;
+  EIGEN_STRONG_INLINE void bload(PacketBlock<Packet, BlockSize>& block, const DataMapper& dm, const Index& row, const Index& col, const Index& offset)
+  {
+    blockLoad.bload(block, dm, row, col, offset);
+    if( StorageOrder == RowMajor )
+    {
+      block.packet[Idx] = dm.template loadPacket<Packet>(row + Idx, col + offset);
+    } else
+    {
+      block.packet[Idx] = dm.template loadPacket<Packet>(row + offset, col + Idx);
+    }
+  }
+
+  EIGEN_STRONG_INLINE void bstore(PacketBlock<Packet, BlockSize>& block, typename unpacket_traits<Packet>::type* addr, const Index& offset)
+  {
+    blockLoad.bstore(block, addr, offset);
+    pstore<typename unpacket_traits<Packet>::type>(addr + offset + Idx*unpacket_traits<Packet>::size, block.packet[Idx]);
+  }
+};
+
+template<typename DataMapper, typename Packet, typename Index, int StorageOrder, int BlockSize>
+struct BlockLoad<DataMapper, Packet, Index, StorageOrder, BlockSize, -1>
+{
+  EIGEN_STRONG_INLINE void bload(PacketBlock<Packet, BlockSize>&, const DataMapper&, const Index&, const Index&, const Index&){}
+  EIGEN_STRONG_INLINE void bstore(PacketBlock<Packet, BlockSize>& block, typename unpacket_traits<Packet>::type*, const Index&){}
+};
+
 /**
  * PanelMode
  * Packing might be called several times before being multiplied by gebp_kernel, this happens because
@@ -594,44 +626,33 @@ struct lhs_pack{
 
     for(j = 0; j + vectorSize < rows; j+=vectorSize)
     {
-      Index i = 0;
 
       if(PanelMode) ri += vectorSize*offset;
 
+      Index i = 0;
       for(; i + vectorSize < depth; i+=vectorSize)
       {
-        PacketBlock<Packet, 4> block;
-
+        PacketBlock<Packet, BLOCK_SIZE> block;
+        BlockLoad<DataMapper, Packet, Index, StorageOrder, BLOCK_SIZE, BLOCK_SIZE-1> blockLoad;
+        blockLoad.bload(block, lhs, j, i, 0);
         if(StorageOrder == RowMajor)
         {
-          block.packet[0] = lhs.template loadPacket<Packet>(j + 0, i);
-          block.packet[1] = lhs.template loadPacket<Packet>(j + 1, i);
-          block.packet[2] = lhs.template loadPacket<Packet>(j + 2, i);
-          block.packet[3] = lhs.template loadPacket<Packet>(j + 3, i);
-
           ptranspose(block);
-        } else {
-          block.packet[0] = lhs.template loadPacket<Packet>(j, i + 0);
-          block.packet[1] = lhs.template loadPacket<Packet>(j, i + 1);
-          block.packet[2] = lhs.template loadPacket<Packet>(j, i + 2);
-          block.packet[3] = lhs.template loadPacket<Packet>(j, i + 3);
         }
-
+        blockLoad.bstore(block, blockA, ri);
+        /*
         pstore<Scalar>(blockA + ri     , block.packet[0]);
         pstore<Scalar>(blockA + ri +  4, block.packet[1]);
         pstore<Scalar>(blockA + ri +  8, block.packet[2]);
         pstore<Scalar>(blockA + ri + 12, block.packet[3]);
-
-        ri += 4*vectorSize;
+        */
+        ri += BLOCK_SIZE*vectorSize;
       }
       for(; i < depth; i++)
       {
         if(StorageOrder == RowMajor)
         {
-          blockA[ri+0] = lhs(j+0, i);
-          blockA[ri+1] = lhs(j+1, i);
-          blockA[ri+2] = lhs(j+2, i);
-          blockA[ri+3] = lhs(j+3, i);
+          for(auto ii = 0; ii < unpacket_traits<Packet>::size; ii++) blockA[ri+i] = lhs(j+ii, i);
         } else {
           Packet lhsV = lhs.template loadPacket<Packet>(j, i);
           pstore<Scalar>(blockA + ri, lhsV);
@@ -848,37 +869,48 @@ struct rhs_pack {
 
       for(; i + vectorSize < depth; i+=vectorSize)
       {
-        PacketBlock<Packet, 4> block;
+        PacketBlock<Packet, BLOCK_SIZE> block;
+        BlockLoad<DataMapper, Packet, Index, StorageOrder, BLOCK_SIZE, BLOCK_SIZE-1> blockLoad;
+        blockLoad.bload(block, rhs, i, j, 0);
         if(StorageOrder == ColMajor)
         {
+          /*
           block.packet[0] = rhs.template loadPacket<Packet>(i, j + 0);
           block.packet[1] = rhs.template loadPacket<Packet>(i, j + 1);
           block.packet[2] = rhs.template loadPacket<Packet>(i, j + 2);
           block.packet[3] = rhs.template loadPacket<Packet>(i, j + 3);
-
+          */
           ptranspose(block);
         } else {
+          /*
           block.packet[0] = rhs.template loadPacket<Packet>(i + 0, j);
           block.packet[1] = rhs.template loadPacket<Packet>(i + 1, j);
           block.packet[2] = rhs.template loadPacket<Packet>(i + 2, j);
           block.packet[3] = rhs.template loadPacket<Packet>(i + 3, j);
+          */
         }
 
+        blockLoad.bstore(block, blockB, ri);
+        /*
         pstore<Scalar>(blockB + ri     , block.packet[0]);
         pstore<Scalar>(blockB + ri +  4, block.packet[1]);
         pstore<Scalar>(blockB + ri +  8, block.packet[2]);
         pstore<Scalar>(blockB + ri + 12, block.packet[3]);
+        */
 
-        ri += 4*vectorSize;
+        ri += BLOCK_SIZE*vectorSize;
       }
       for(; i < depth; i++)
       {
         if(StorageOrder == ColMajor)
         {
+          for(auto ii = 0; ii < unpacket_traits<Packet>::size; ii++) blockB[ri+ii] = rhs(i, j + ii);
+          /*
           blockB[ri+0] = rhs(i, j+0);
           blockB[ri+1] = rhs(i, j+1);
           blockB[ri+2] = rhs(i, j+2);
           blockB[ri+3] = rhs(i, j+3);
+          */
         } else {
           Packet rhsV = rhs.template loadPacket<Packet>(i, j);
           pstore<Scalar>(blockB + ri, rhsV);
@@ -1359,7 +1391,7 @@ EIGEN_STRONG_INLINE void bcouple<Packet2d, Packet1cd>(PacketBlock<Packet2d,4>& t
 */
 // 512-bits rank1-update of acc. It can either positive or negative accumulate (useful for complex gemm).
 template<typename Scalar, typename Packet, bool NegativeAccumulate>
-EIGEN_ALWAYS_INLINE void pger(PacketBlock<Packet, 4> *acc, const Scalar* lhs, const Scalar* rhs)
+EIGEN_ALWAYS_INLINE void pger(PacketBlock<Packet, BLOCK_SIZE> *acc, const Scalar* lhs, const Scalar* rhs)
 {
   Packet lhsV = *((Packet *) lhs);
   Packet rhsV1 = pset1<Packet>(rhs[0]);
@@ -1508,10 +1540,14 @@ EIGEN_STRONG_INLINE void bscalec(PacketBlock<Packet,4>& aReal, PacketBlock<Packe
 template<typename DataMapper, typename Packet, typename Index, int N>
 EIGEN_STRONG_INLINE void bload(PacketBlock<Packet,4>& acc, const DataMapper& res, Index row, Index col, Index accCols)
 {
+  BlockLoad<DataMapper, Packet, Index, ColMajor, 4, 3> blockLoad;
+  blockLoad.bload(acc, res, row, col, N*accCols);
+  /*
   acc.packet[0] = res.template loadPacket<Packet>(row + N*accCols, col + 0);
   acc.packet[1] = res.template loadPacket<Packet>(row + N*accCols, col + 1);
   acc.packet[2] = res.template loadPacket<Packet>(row + N*accCols, col + 2);
   acc.packet[3] = res.template loadPacket<Packet>(row + N*accCols, col + 3);
+  */
 }
 
 // An overload of bload when you have a PacketBlock with 8 vectors.
@@ -1536,12 +1572,13 @@ struct Microkernel
 {
     Microkernel<Index, Scalar,Packet, DataMapper, N-1> kernel;
     const Scalar *lhs_ptr;
-    PacketBlock<Packet, 4> acc, accZero;
+    PacketBlock<Packet, BLOCK_SIZE> acc, accZero;
 
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void preamble(const DataMapper &res, const Scalar* lhs_base, const Index& row, const Index& col, const Index& strideA, const Index& offsetA, const int& accCols)
     {
         kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
         lhs_ptr = lhs_base + ((row/accCols) + N)*strideA*accCols;
+        //prefetch(lhs_ptr + 1);
 
         bload<DataMapper, Packet, Index, N>(acc, res, row, col, accCols);
         bsetzero<Scalar, Packet>(accZero);
@@ -1560,7 +1597,7 @@ struct Microkernel
     {
         kernel.postamble(res, row, col, pAlpha, accCols);
         bscale<Packet>(acc, accZero, pAlpha);
-        res.template storePacketBlock<Packet, 4>(row + N*accCols, col, acc);
+        res.template storePacketBlock<Packet, BLOCK_SIZE>(row + N*accCols, col, acc);
     }
 };
 
@@ -1610,10 +1647,26 @@ struct KernelOutterLoop
                                                         const Index& depth,
                                                         Index& row)
   {
+#define EIGEN_ARM_STORE_PREFETCH(ADDR)  __asm__ __volatile__("prfm pstl1strm, [%[addr]]\n" ::[addr] "r"(ADDR) : );
+#define EIGEN_ARM_L2_PREFETCH(ADDR)  __asm__ __volatile__("prfm pldl2keep, [%[addr]]\n" ::[addr] "r"(ADDR) : );
+    //prefetch(&res(row,col));
+    //EIGEN_ARM_L2_PREFETCH(rhs_base);
+    //EIGEN_ARM_L2_PREFETCH(lhs_base);
+
     for(; row + PEEL*accCols <= rows; row += PEEL*accCols)
     {
       Microkernel<Index, Scalar, Packet, DataMapper, PEEL-1> kernel;
-      const Scalar *rhs_ptr  = rhs_base;
+      const Scalar *rhs_ptr = rhs_base;
+      //__asm__("#prefetchme\n\t");
+      //prefetch(rhs_ptr + accRows*offsetB);
+      //__asm__("#prefetchme2\n\t");
+      //prefetch(&res(row + PEEL*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 1*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 2*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 3*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 4*accCols,col));
+      //prefetch(lhs_base + ((row/accCols))*strideA*accCols);
+
 
       kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
 
@@ -1673,8 +1726,10 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
         const Scalar *lhs_base = blockA;
 
         Index row = 0;
-        prefetch(rhs_base);
-        prefetch(lhs_base);
+
+        //prefetch(rhs_base);
+        //prefetch(lhs_base);
+
         KernelOutterLoop<Index, Scalar, Packet, DataMapper, PEEL_DEPTH, PEEL> kernel_outter_loop;
         kernel_outter_loop(rhs_base, lhs_base, strideA, strideB, offsetA, offsetB, col, res, pAlpha, accCols, accRows, rows, depth, row);
 
@@ -2833,7 +2888,7 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
     const int accRows = quad_traits<float>::rows;
     const int accCols = quad_traits<float>::size;
 
-    gemm<float, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<float, Index, Packet, RhsPacket, DataMapper, 8, 12>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 
 /*
@@ -2929,7 +2984,7 @@ void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
     const int accRows = quad_traits<double>::rows;
     const int accCols = quad_traits<double>::size;
 
-    gemm<double, Index, Packet, RhsPacket, DataMapper, 8, 10>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<double, Index, Packet, RhsPacket, DataMapper, 8, 8>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 /*
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>

@@ -43,12 +43,18 @@ void test_gpu_conversion() {
   gpu_conv.device(gpu_device) = gpu_half.cast<float>();
 
   Tensor<float, 1> initial(num_elem);
+  Tensor<Eigen::half, 1> middle(num_elem);
   Tensor<float, 1> final(num_elem);
   gpu_device.memcpyDeviceToHost(initial.data(), d_float, num_elem*sizeof(float));
+  gpu_device.memcpyDeviceToHost(middle.data(), d_half, num_elem*sizeof(Eigen::half));
   gpu_device.memcpyDeviceToHost(final.data(), d_conv, num_elem*sizeof(float));
   gpu_device.synchronize();
 
   for (int i = 0; i < num_elem; ++i) {
+    const Eigen::half h = Eigen::internal::cast<float,Eigen::half>(initial(i));
+    const float f = Eigen::internal::cast<Eigen::half,float>(middle(i));
+    VERIFY_IS_APPROX(middle(i), h);
+    VERIFY_IS_APPROX(final(i), f);
     VERIFY_IS_APPROX(initial(i), final(i));
   }
 

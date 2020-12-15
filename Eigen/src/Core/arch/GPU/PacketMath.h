@@ -15,12 +15,14 @@ namespace Eigen {
 namespace internal {
 
 // Read-only data cached load available.
-#if defined(EIGEN_HIP_DEVICE_COMPILE) || EIGEN_CUDA_ARCH >= 350
+#if defined(EIGEN_HIP_DEVICE_COMPILE) || \
+  (defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 350)
 #define EIGEN_GPU_HAS_LDG 1
 #endif
 
 // FP16 math available.
-#if defined(EIGEN_HIP_DEVICE_COMPILE) || EIGEN_CUDA_ARCH >= 530
+#if defined(EIGEN_HIP_DEVICE_COMPILE) || \
+  (defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 530)
 #define EIGEN_GPU_HAS_FP16_ARITHMETIC 1
 #endif
 
@@ -354,7 +356,7 @@ template<> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstoreu<double>(double* to
 template<>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float4 ploadt_ro<float4, Aligned>(const float* from) {
 #if defined(EIGEN_GPU_HAS_LDG)
-  return __ldg((const float4*)from);
+  return __ldg(reinterpret_cast<const float4*>(from));
 #else
   return make_float4(from[0], from[1], from[2], from[3]);
 #endif
@@ -362,7 +364,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float4 ploadt_ro<float4, Aligned>(const fl
 template<>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double2 ploadt_ro<double2, Aligned>(const double* from) {
 #if defined(EIGEN_GPU_HAS_LDG)
-  return __ldg((const double2*)from);
+  return __ldg(reinterpret_cast<const double2*>(from));
 #else
   return make_double2(from[0], from[1]);
 #endif
@@ -603,7 +605,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstoreu(Eigen::half* to,
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE half2 ploadt_ro_aligned(
     const Eigen::half* from) {
 #if defined(EIGEN_GPU_HAS_LDG)
-  return __ldg((const half2*)from);
+  return __ldg(reinterpret_cast<const half2*>(from));
 #else
   return combine_half(*(from+0), *(from+1));
 #endif
@@ -636,18 +638,18 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half pfirst(const half2& a) {
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pabs(const half2& a) {
   half a1 = get_half2_low(a);
   half a2 = get_half2_high(a);
-  half result1 = half_impl::raw_uint16_to_half(a1.x & 0x7FFF);
-  half result2 = half_impl::raw_uint16_to_half(a2.x & 0x7FFF);
+  half result1 = numext::bit_cast<half>(static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a1) & 0x7FFFu));
+  half result2 = numext::bit_cast<half>(static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a2) & 0x7FFFu));
   return combine_half(result1, result2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 ptrue(const half2& /*a*/) {
-  half true_half = half_impl::raw_uint16_to_half(0xffffu);
+  half true_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0xFFFFu));
   return pset1<half2>(true_half);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pzero(const half2& /*a*/) {
-  half false_half = half_impl::raw_uint16_to_half(0x0000u);
+  half false_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0x0000u));
   return pset1<half2>(false_half);
 }
 
@@ -682,8 +684,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pselect(const half2& mask,
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pcmp_eq(const half2& a,
                                                     const half2& b) {
-  half true_half = half_impl::raw_uint16_to_half(0xffffu);
-  half false_half = half_impl::raw_uint16_to_half(0x0000u);
+  half true_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0xFFFFu));
+  half false_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0x0000u));
   half a1 = get_half2_low(a);
   half a2 = get_half2_high(a);
   half b1 = get_half2_low(b);
@@ -695,8 +697,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pcmp_eq(const half2& a,
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pcmp_lt(const half2& a,
                                                     const half2& b) {
-  half true_half = half_impl::raw_uint16_to_half(0xffffu);
-  half false_half = half_impl::raw_uint16_to_half(0x0000u);
+  half true_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0xFFFFu));
+  half false_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0x0000u));
   half a1 = get_half2_low(a);
   half a2 = get_half2_high(a);
   half b1 = get_half2_low(b);
@@ -712,8 +714,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pand(const half2& a,
   half a2 = get_half2_high(a);
   half b1 = get_half2_low(b);
   half b2 = get_half2_high(b);
-  half result1 = half_impl::raw_uint16_to_half(a1.x & b1.x);
-  half result2 = half_impl::raw_uint16_to_half(a2.x & b2.x);
+  half result1 = numext::bit_cast<half>(
+    static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a1) & numext::bit_cast<numext::uint16_t>(b1)));
+  half result2 = numext::bit_cast<half>(
+    static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a2) & numext::bit_cast<numext::uint16_t>(b2)));
   return combine_half(result1, result2);
 }
 
@@ -723,8 +727,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 por(const half2& a,
   half a2 = get_half2_high(a);
   half b1 = get_half2_low(b);
   half b2 = get_half2_high(b);
-  half result1 = half_impl::raw_uint16_to_half(a1.x | b1.x);
-  half result2 = half_impl::raw_uint16_to_half(a2.x | b2.x);
+  half result1 = numext::bit_cast<half>(
+      static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a1) | numext::bit_cast<numext::uint16_t>(b1)));
+  half result2 = numext::bit_cast<half>(
+      static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a2) | numext::bit_cast<numext::uint16_t>(b2)));
   return combine_half(result1, result2);
 }
 
@@ -734,8 +740,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pxor(const half2& a,
   half a2 = get_half2_high(a);
   half b1 = get_half2_low(b);
   half b2 = get_half2_high(b);
-  half result1 = half_impl::raw_uint16_to_half(a1.x ^ b1.x);
-  half result2 = half_impl::raw_uint16_to_half(a2.x ^ b2.x);
+  half result1 = numext::bit_cast<half>(
+      static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a1) ^ numext::bit_cast<numext::uint16_t>(b1)));
+  half result2 = numext::bit_cast<half>(
+      static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a2) ^ numext::bit_cast<numext::uint16_t>(b2)));
   return combine_half(result1, result2);
 }
 
@@ -745,8 +753,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pandnot(const half2& a,
   half a2 = get_half2_high(a);
   half b1 = get_half2_low(b);
   half b2 = get_half2_high(b);
-  half result1 = half_impl::raw_uint16_to_half(a1.x & ~b1.x);
-  half result2 = half_impl::raw_uint16_to_half(a2.x & ~b2.x);
+  half result1 = numext::bit_cast<half>(
+    static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a1) & ~numext::bit_cast<numext::uint16_t>(b1)));
+  half result2 = numext::bit_cast<half>(
+    static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a2) & ~numext::bit_cast<numext::uint16_t>(b2)));
   return combine_half(result1, result2);
 }
 
@@ -984,7 +994,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 prsqrt(const half2& a) {
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2
 pload<Packet4h2>(const Eigen::half* from) {
+  #if EIGEN_GNUC_AT_LEAST(4,6)
+  // Suppress annoying "may be used uninitialized in this function" warning with gcc >= 4.6
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
   return *reinterpret_cast<const Packet4h2*>(from);
+  #pragma GCC diagnostic pop
+  #else
+  return *reinterpret_cast<const Packet4h2*>(from);
+  #endif
 }
 
 // unaligned load;
@@ -1033,7 +1051,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4h2
 ploadt_ro<Packet4h2, Aligned>(const Eigen::half* from) {
 #if defined(EIGEN_GPU_HAS_LDG)
   Packet4h2 r;
-  r = __ldg((const Packet4h2*)from);
+  r = __ldg(reinterpret_cast<const Packet4h2*>(from));
   return r;
 #else
   Packet4h2 r;
@@ -1102,13 +1120,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 pabs<Packet4h2>(
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 ptrue<Packet4h2>(
     const Packet4h2& /*a*/) {
-  half true_half = half_impl::raw_uint16_to_half(0xffffu);
+  half true_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0xFFFFu));
   return pset1<Packet4h2>(true_half);
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 pzero<Packet4h2>(const Packet4h2& /*a*/) {
-  half false_half = half_impl::raw_uint16_to_half(0x0000u);
+  half false_half = numext::bit_cast<half>(static_cast<numext::uint16_t>(0x0000u));
   return pset1<Packet4h2>(false_half);
 }
 
@@ -1226,7 +1244,7 @@ plset<Packet4h2>(const Eigen::half& a) {
   p_alias[3] = __halves2half2(__hadd(a, __float2half(6.0f)),
                               __hadd(a, __float2half(7.0f)));
   return r;
-#elif EIGEN_CUDA_ARCH >= 530
+#elif defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 530
   Packet4h2 r;
   half2* r_alias = reinterpret_cast<half2*>(&r);
 
@@ -1478,7 +1496,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_max<Packet4h2>(
                             predux_max(a_alias[3]));
   __half first  = predux_max(m0);
   __half second = predux_max(m1);
-#if EIGEN_CUDA_ARCH >= 530
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return (__hgt(first, second) ? first : second);
 #else
   float ffirst  = __half2float(first);
@@ -1497,7 +1515,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_min<Packet4h2>(
                             predux_min(a_alias[3]));
   __half first  = predux_min(m0);
   __half second = predux_min(m1);
-#if EIGEN_CUDA_ARCH >= 530
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return (__hlt(first, second) ? first : second);
 #else
   float ffirst  = __half2float(first);

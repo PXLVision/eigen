@@ -198,7 +198,7 @@ T loadConstant(const T* address) {
   return *address;
 }
 // Use the texture cache on CUDA devices whenever possible
-#if defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 350
+#if EIGEN_CUDA_ARCH >= 350 || defined(EIGEN_HIP_DEVICE_COMPILE)
 template <> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 float loadConstant(const float* address) {
   return __ldg(address);
@@ -208,8 +208,8 @@ double loadConstant(const double* address) {
   return __ldg(address);
 }
 template <> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-Eigen::half loadConstant(const Eigen::half* address) {
-  return Eigen::half(half_impl::raw_uint16_to_half(__ldg(&address->x)));
+__half loadConstant(const __half* address) {
+  return __ldg(address);
 }
 #endif
 #ifdef EIGEN_USE_SYCL

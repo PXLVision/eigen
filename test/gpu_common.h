@@ -116,6 +116,7 @@ struct compile_time_device_info {
   EIGEN_DEVICE_FUNC
   void operator()(int i, const int* /*in*/, int* info) const
   {
+<<<<<<< HEAD
     if (i == 0) {
       EIGEN_UNUSED_VARIABLE(info)
       #if defined(__CUDA_ARCH__)
@@ -125,6 +126,15 @@ struct compile_time_device_info {
       info[1] = int(EIGEN_HIP_DEVICE_COMPILE +0);
       #endif
     }
+=======
+    EIGEN_UNUSED_VARIABLE(info);
+    #if defined(__CUDA_ARCH__)
+    info[0] = int(__CUDA_ARCH__ +0);
+    #endif
+    #if defined(EIGEN_HIP_DEVICE_COMPILE)
+    info[1] = int(EIGEN_HIP_DEVICE_COMPILE +0);
+    #endif
+>>>>>>> e06a07d39 (ugh2)
   }
 };
 

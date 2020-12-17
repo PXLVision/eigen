@@ -12,8 +12,9 @@
 
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 #define EIGEN_USE_GPU
-
+// #define __CUDA_NO_HALF_OPERATORS__ 1
 #include "main.h"
+#include "gpu_common.h"
 #include <unsupported/Eigen/CXX11/Tensor>
 
 using Eigen::Tensor;

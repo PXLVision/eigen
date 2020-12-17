@@ -239,6 +239,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitFullReduxKernelHalfFlo
 template <typename Self,
           typename Reducer, typename Index>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitKernelHalfFloat(Reducer reducer, const Self input, Index num_coeffs, half* output) {
+  EIGEN_UNUSED_VARIABLE(input)
   const Index thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   const Index num_threads = blockDim.x * gridDim.x;
   typedef typename packet_traits<Eigen::half>::type PacketType;
@@ -706,11 +707,11 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernelHalfFloat(Reduc
         half2* hr2 = reinterpret_cast<half2*>(&r2);
         half2* rr1 = reinterpret_cast<half2*>(&reduced_val1);
         half2* rr2 = reinterpret_cast<half2*>(&reduced_val2);
-        for (int i = 0; i < packet_width / 2; i++) {
-          hr1[i] =
-              __shfl_down_sync(0xFFFFFFFF, rr1[i], (unsigned)offset, warpSize);
-          hr2[i] =
-              __shfl_down_sync(0xFFFFFFFF, rr2[i], (unsigned)offset, warpSize);
+        for (int j = 0; i < packet_width / 2; j++) {
+          hr1[j] =
+              __shfl_down_sync(0xFFFFFFFF, rr1[j], (unsigned)offset, warpSize);
+          hr2[j] =
+              __shfl_down_sync(0xFFFFFFFF, rr2[j], (unsigned)offset, warpSize);
         }
         reducer.reducePacket(r1, &reduced_val1);
         reducer.reducePacket(r2, &reduced_val2);
@@ -735,7 +736,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernelHalfFloat(Reduc
       val = __halves2half2(val1, val2);
       if ((threadIdx.x & (warpSize - 1)) == 0) {
         half* loc = output + row;
-        atomicReduce((half2*)loc, val, reducer);
+        atomicReduce(reinterpret_cast<half2*>(loc), val, reducer);
       }
     }
   }
@@ -773,12 +774,12 @@ struct InnerReductionLauncher<
     if (num_blocks > 1) {
       // We initialize the outputs outside the reduction kernel when we can't be sure that there
       // won't be a race conditions between multiple thread blocks.
-      const int dyn_blocks = divup<int>(num_preserved_vals, 1024);
-      const int max_blocks = device.getNumGpuMultiProcessors() *
-                           device.maxGpuThreadsPerMultiProcessor() / 1024;
-      const int num_blocks = numext::mini<int>(max_blocks, dyn_blocks);
+      const int dyn_blocks2 = divup<int>(num_preserved_vals, 1024);
+      const int max_blocks2 = device.getNumGpuMultiProcessors() *
+                              device.maxGpuThreadsPerMultiProcessor() / 1024;
+      const int num_blocks2 = numext::mini<int>(max_blocks2, dyn_blocks2);
       LAUNCH_GPU_KERNEL((ReductionInitKernel<OutputType, Index>),
-                         num_blocks, 1024, 0, device, reducer.initialize(),
+                         num_blocks2, 1024, 0, device, reducer.initialize(),
                          num_preserved_vals, output);
     }
 
@@ -941,12 +942,12 @@ struct OuterReducer<Self, Op, GpuDevice> {
     if (num_blocks > 1) {
       // We initialize the outputs in the reduction kernel itself when we don't have to worry
       // about race conditions between multiple thread blocks.
-      const int dyn_blocks = divup<int>(num_preserved_vals, 1024);
-      const int max_blocks = device.getNumGpuMultiProcessors() *
-                             device.maxGpuThreadsPerMultiProcessor() / 1024;
-      const int num_blocks = numext::mini<int>(max_blocks, dyn_blocks);
+      const int dyn_blocks2 = divup<int>(num_preserved_vals, 1024);
+      const int max_blocks2 = device.getNumGpuMultiProcessors() *
+                              device.maxGpuThreadsPerMultiProcessor() / 1024;
+      const int num_blocks2 = numext::mini<int>(max_blocks2, dyn_blocks2);
       LAUNCH_GPU_KERNEL((ReductionInitKernel<float, Index>),
-                         num_blocks, 1024, 0, device, reducer.initialize(),
+                         num_blocks2, 1024, 0, device, reducer.initialize(),
                          num_preserved_vals, output);
     }
 

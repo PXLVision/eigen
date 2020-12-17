@@ -29,18 +29,32 @@
 #if defined(EIGEN_HAS_GPU_FP16)
 
 // FP16 math available.
-#if defined(EIGEN_HIP_DEVICE_COMPILE) || EIGEN_CUDA_ARCH >= 530
+#if defined(EIGEN_HIP_DEVICE_COMPILE) || \
+  (defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 530)
 #define EIGEN_GPU_HAS_FP16_ARITHMETIC 1
 #endif
-#if defined(EIGEN_HIP_DEVICE_COMPILE) || (EIGEN_CUDA_SDK_VER > 80000 && EIGEN_CUDA_ARCH >= 530)
+#if defined(EIGEN_HIP_DEVICE_COMPILE) || \
+  (EIGEN_CUDA_SDK_VER > 80000 && defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 530)
 #define EIGEN_GPU_HAS_FP16_MATH_FUNCTIONS 1
 #endif
 
 namespace Eigen {
 
-typedef ::__half half;
-
 namespace half_impl {
+  
+// Simple struct so we can re-use implementation yet still overload operators.
+struct HalfFloat : public __half {
+  EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC HalfFloat() : __half() {}
+  EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC HalfFloat(const __half& h) : __half(h) {}
+  EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC HalfFloat(const HalfFloat& h) : __half(h) {}
+  using __half::operator =; \
+  EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC HalfFloat& operator=(const HalfFloat& other) {
+    __half::operator=(other); 
+    return *this;
+  }
+     
+
+};
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 numext::uint16_t raw_half_as_uint16(const __half& h) {
@@ -83,6 +97,9 @@ __half float_to_half(const __half& h) {
 }
 
 }  // namespace half_impl
+
+typedef half_impl::HalfFloat half;
+
 }  // namespace Eigen
 
 namespace std {
@@ -145,105 +162,106 @@ struct hash<Eigen::half> {
 
 } // end namespace std
 
-// Operators must be defined in the global namespace so they are found by ADL
-//   (since CUDA's __half is in the global namespace).
+
+namespace Eigen {
+namespace half_impl {
+ 
 // We need operators to be defined for both host and device.
 
-// If device operators can be defined, ensure they exist.
-#if (defined(EIGEN_HIPCC)) || \
-    (defined(EIGEN_CUDACC) && (EIGEN_CUDA_ARCH >= 530 || !defined(EIGEN_CUDA_ARCH)))
-
-// Re-enable operators if disabled on first fp16 header inclusion.
-#if ( defined(EIGEN_HIPCC) && defined(__HIP_NO_HALF_OPERATORS__) ) || \
-    ( defined(EIGEN_CUDACC) && defined(__CUDA_NO_HALF_OPERATORS__) )
-
-EIGEN_STRONG_INLINE __device__ Eigen::half operator + (const Eigen::half& a, const Eigen::half& b) { return __hadd(a, b); }
-EIGEN_STRONG_INLINE __device__ Eigen::half operator * (const Eigen::half& a, const Eigen::half& b) { return __hmul(a, b); }
-EIGEN_STRONG_INLINE __device__ Eigen::half operator - (const Eigen::half& a, const Eigen::half& b) { return __hsub(a, b); }
-EIGEN_STRONG_INLINE __device__ Eigen::half operator / (const Eigen::half& a, const Eigen::half& b) {
-#if defined(EIGEN_HIPCC) || EIGEN_CUDA_SDK_VER >= 90000
-  return __hdiv(a, b);
-#else
-  return Eigen::half_impl::float_to_half(Eigen::half_impl::half_to_float(a) / Eigen::half_impl::half_to_float(b));
-#endif
-}
-
-EIGEN_STRONG_INLINE __device__ Eigen::half operator + (const Eigen::half& a) { return a; }
-EIGEN_STRONG_INLINE __device__ Eigen::half operator - (const Eigen::half& a) { return __hneg(a); }
-EIGEN_STRONG_INLINE __device__ Eigen::half& operator += (Eigen::half& a, const Eigen::half& b) { a = a + b; return a; }
-EIGEN_STRONG_INLINE __device__ Eigen::half& operator *= (Eigen::half& a, const Eigen::half& b) { a = a * b; return a; }
-EIGEN_STRONG_INLINE __device__ Eigen::half& operator -= (Eigen::half& a, const Eigen::half& b) { a = a - b; return a; }
-EIGEN_STRONG_INLINE __device__ Eigen::half& operator /= (Eigen::half& a, const Eigen::half& b) { a = a / b; return a; }
-
-EIGEN_STRONG_INLINE __device__ bool operator == (const Eigen::half& a, const Eigen::half& b) { return __heq(a, b); }
-EIGEN_STRONG_INLINE __device__ bool operator != (const Eigen::half& a, const Eigen::half& b) { return __hne(a, b); }
-EIGEN_STRONG_INLINE __device__ bool operator < (const Eigen::half& a, const Eigen::half& b) { return __hlt(a, b); }
-EIGEN_STRONG_INLINE __device__ bool operator <= (const Eigen::half& a, const Eigen::half& b) { return __hle(a, b); }
-EIGEN_STRONG_INLINE __device__ bool operator > (const Eigen::half& a, const Eigen::half& b) { return __hgt(a, b); }
-EIGEN_STRONG_INLINE __device__ bool operator >= (const Eigen::half& a, const Eigen::half& b) { return __hge(a, b); }
-
-#endif // Re-enable FP16 device operators if disabled
-
-// Fallback operators should only be defined for host.
-#define EIGEN_GPU_FP16_OPERATOR __host__
-#else
-// Fallback operators need to be defined for host and device.
-#define EIGEN_GPU_FP16_OPERATOR __host__ __device__
-#endif // Device operators are defined.
-
-// Fallback operators convert to/from float.
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half operator + (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half operator + (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hadd(a, b);
+  #else
   return Eigen::half_impl::float_to_half(Eigen::half_impl::half_to_float(a) + Eigen::half_impl::half_to_float(b));
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half operator * (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half operator * (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hmul(a, b);
+  #else
   return Eigen::half_impl::float_to_half(Eigen::half_impl::half_to_float(a) * Eigen::half_impl::half_to_float(b));
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half operator - (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half operator - (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hsub(a, b);
+  #else
   return Eigen::half_impl::float_to_half(Eigen::half_impl::half_to_float(a) - Eigen::half_impl::half_to_float(b));
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half operator / (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half operator / (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC) && (defined(EIGEN_HIPCC) || EIGEN_CUDA_SDK_VER >= 90000)
+  return __hdiv(a, b);
+  #else
   return Eigen::half_impl::float_to_half(Eigen::half_impl::half_to_float(a) / Eigen::half_impl::half_to_float(b));
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half operator + (const Eigen::half& a) { return a; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half operator + (const Eigen::half& a) { return a; }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half operator - (const Eigen::half& a) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half operator - (const Eigen::half& a) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hneg(a);
+  #else
   return Eigen::half_impl::raw_uint16_as_half(Eigen::half_impl::raw_half_as_uint16(a) ^ 0x8000);
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half& operator += (Eigen::half& a, const Eigen::half& b) { a = a + b; return a; }
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half& operator *= (Eigen::half& a, const Eigen::half& b) { a = a * b; return a; }
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half& operator -= (Eigen::half& a, const Eigen::half& b) { a = a - b; return a; }
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR Eigen::half& operator /= (Eigen::half& a, const Eigen::half& b) { a = a / b; return a; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half& operator += (Eigen::half& a, const Eigen::half& b) { a = a + b; return a; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half& operator *= (Eigen::half& a, const Eigen::half& b) { a = a * b; return a; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half& operator -= (Eigen::half& a, const Eigen::half& b) { a = a - b; return a; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half& operator /= (Eigen::half& a, const Eigen::half& b) { a = a / b; return a; }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR bool operator == (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator == (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __heq(a, b);
+  #else
   return Eigen::numext::equal_strict(Eigen::half_impl::half_to_float(a), Eigen::half_impl::half_to_float(b));
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR bool operator != (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator != (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hne(a, b);
+  #else
   return Eigen::numext::not_equal_strict(Eigen::half_impl::half_to_float(a), Eigen::half_impl::half_to_float(b));
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR bool operator < (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator < (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hlt(a, b);
+  #else
   return Eigen::half_impl::half_to_float(a) < Eigen::half_impl::half_to_float(b);
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR bool operator <= (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator <= (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hle(a, b);
+  #else
   return Eigen::half_impl::half_to_float(a) <= Eigen::half_impl::half_to_float(b);
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR bool operator > (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator > (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hgt(a, b);
+  #else
   return Eigen::half_impl::half_to_float(a) > Eigen::half_impl::half_to_float(b);
+  #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_GPU_FP16_OPERATOR bool operator >= (const Eigen::half& a, const Eigen::half& b) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator >= (const Eigen::half& a, const Eigen::half& b) {
+  #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
+  return __hge(a, b);
+  #else
   return Eigen::half_impl::half_to_float(a) >= Eigen::half_impl::half_to_float(b);
+  #endif
 }
-
-#undef EIGEN_GPU_FP16_OPERATOR
 
 // Division by an index. Do it in full float precision to avoid accuracy
 // issues in converting the denominator to Eigen::half.
@@ -251,8 +269,11 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half operator / (const Eigen::half&
   return Eigen::half_impl::float_to_half(Eigen::half_impl::half_to_float(a) / static_cast<float>(b));
 }
 
+} // namespace half_impl
+} // namespace Eigen
+
 // We currently don't have ops for log2/log10 that can be specialized, so creating overloads here.
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log10(const half& a) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half log10(const __half& a) {
   return Eigen::half_impl::float_to_half(::log10f(Eigen::half_impl::half_to_float(a)));
 }
 
@@ -266,6 +287,8 @@ EIGEN_ALWAYS_INLINE std::ostream& operator << (std::ostream& os, const __half& v
   return os;
 }
 #endif // !defined(EIGEN_NO_IO)
+
+}  // namespace Eigen
 
 namespace Eigen {
 
@@ -495,7 +518,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half ceil<half>(const half& a) {
 #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half (min)(const half& a, const half& b) {
+template<>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half mini<half>(const half& a, const half& b) {
 #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hlt(b, a) ? b : a;
 #else
@@ -505,7 +529,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half (min)(const half& a, const half& b) {
 #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half (max)(const half& a, const half& b) {
+template<>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half maxi<half>(const half& a, const half& b) {
 #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hlt(a, b) ? b : a;
 #else

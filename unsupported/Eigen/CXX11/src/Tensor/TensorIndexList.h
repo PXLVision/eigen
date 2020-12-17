@@ -42,6 +42,7 @@ struct type2index {
   static const Index value = n;
   EIGEN_DEVICE_FUNC constexpr operator Index() const { return n; }
   EIGEN_DEVICE_FUNC void set(Index val) {
+    EIGEN_UNUSED_VARIABLE(val)
     eigen_assert(val == n);
   }
 };
@@ -58,6 +59,7 @@ struct type2indexpair {
   }
 
   EIGEN_DEVICE_FUNC void set(const IndexPair<Index>& val) {
+    EIGEN_UNUSED_VARIABLE(val)
     eigen_assert(val.first == f);
     eigen_assert(val.second == s);
   }
@@ -274,6 +276,7 @@ struct tuple_coeff<0, ValueT> {
   }
   template <typename... T>
   EIGEN_DEVICE_FUNC static void set(const Index i, IndexTuple<T...>& t, const ValueT value) {
+    EIGEN_UNUSED_VARIABLE(i)
     eigen_assert (i == 0);
     update_value(array_get<0>(t), value);
   }

@@ -33,6 +33,9 @@ namespace internal {
 // we'll use on the host side (SSE, AVX, ...)
 #if defined(EIGEN_GPUCC) && defined(EIGEN_USE_GPU)
 
+typedef float4 Packet4f;
+typedef double2 Packet2d;
+
 template<> struct is_arithmetic<float4>  { enum { value = true }; };
 template<> struct is_arithmetic<double2> { enum { value = true }; };
 
@@ -413,6 +416,13 @@ template<> EIGEN_DEVICE_FUNC inline float  pfirst<float4>(const float4& a) {
 }
 template<> EIGEN_DEVICE_FUNC inline double pfirst<double2>(const double2& a) {
   return a.x;
+}
+
+template<> EIGEN_DEVICE_FUNC inline float  preverse<float4>(const float4& a) {
+  return make_float4(a.w, a.z, a.y, a.x);
+}
+template<> EIGEN_DEVICE_FUNC inline double preverse<double2>(const double2& a) {
+  return make_double2(a.y, a.x);
 }
 
 template<> EIGEN_DEVICE_FUNC inline float  predux<float4>(const float4& a) {

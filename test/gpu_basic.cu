@@ -273,6 +273,23 @@ struct redux {
   }
 };
 
+template<typename T>
+struct math_functions {
+  EIGEN_DEVICE_FUNC
+  void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const
+  {
+    using namespace Eigen;
+    const Map<const T> x1(in+i);
+    const int N = 10;  // 10 operators per thread
+
+    Map<T> out_map(out + i * N * x1.size());
+    if (NumTraits<typename T::Scalar>::IsComplex != 0) {
+      out_map = x1.cwiseSqrt();
+    } else {
+      out_map = x1.cwiseAbs().cwiseSqrt();
+    }
+};
+
 template<typename T1, typename T2>
 struct prod_test {
   EIGEN_DEVICE_FUNC

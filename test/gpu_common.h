@@ -19,6 +19,7 @@
 dim3 threadIdx, blockDim, blockIdx;
 #endif
 
+// Runs the kernel n times, passing the ID [0, n-1] to the kernel.
 template<typename Kernel, typename Input, typename Output>
 void run_on_cpu(const Kernel& ker, int n, const Input& in, Output& out)
 {
@@ -27,6 +28,7 @@ void run_on_cpu(const Kernel& ker, int n, const Input& in, Output& out)
 }
 
 
+// Runs the kernel with IDs [0, n-1] based on thread index.
 template<typename Kernel, typename Input, typename Output>
 __global__
 EIGEN_HIP_LAUNCH_BOUNDS_1024
@@ -38,14 +40,14 @@ void run_on_gpu_meta_kernel(const Kernel ker, int n, const Input* in, Output* ou
   }
 }
 
-
+// Runs the kernel n times on n separate threads.
 template<typename Kernel, typename Input, typename Output>
 void run_on_gpu(const Kernel& ker, int n, const Input& in, Output& out)
 {
   typename Input::Scalar*  d_in;
   typename Output::Scalar* d_out;
-  std::ptrdiff_t in_bytes  = in.size()  * sizeof(typename Input::Scalar);
-  std::ptrdiff_t out_bytes = out.size() * sizeof(typename Output::Scalar);
+  std::size_t in_bytes  = in.size()  * sizeof(typename Input::Scalar);
+  std::size_t out_bytes = out.size() * sizeof(typename Output::Scalar);
   
   gpuMalloc((void**)(&d_in),  in_bytes);
   gpuMalloc((void**)(&d_out), out_bytes);
@@ -55,8 +57,9 @@ void run_on_gpu(const Kernel& ker, int n, const Input& in, Output& out)
   
   // Simple and non-optimal 1D mapping assuming n is not too large
   // That's only for unit testing!
-  dim3 Blocks(128);
-  dim3 Grids( (n+int(Blocks.x)-1)/int(Blocks.x) );
+  int threads_per_block = 128;
+  // blocks = ceil(n/threads_per_block)
+  int blocks = (n + threads_per_block - 1)/threads_per_block;
 
   gpuDeviceSynchronize();
   
@@ -64,9 +67,9 @@ void run_on_gpu(const Kernel& ker, int n, const Input& in, Output& out)
   hipLaunchKernelGGL(HIP_KERNEL_NAME(run_on_gpu_meta_kernel<Kernel,
 				     typename std::decay<decltype(*d_in)>::type,
 				     typename std::decay<decltype(*d_out)>::type>), 
-		     dim3(Grids), dim3(Blocks), 0, 0, ker, n, d_in, d_out);
+		     dim3(blocks), dim3(threads_per_block), 0, 0, ker, n, d_in, d_out);
 #else
-  run_on_gpu_meta_kernel<<<Grids,Blocks>>>(ker, n, d_in, d_out);
+  run_on_gpu_meta_kernel<<<blocks,threads_per_block>>>(ker, n, d_in, d_out);
 #endif
   // Pre-launch errors.
   gpuError_t err = gpuGetLastError();

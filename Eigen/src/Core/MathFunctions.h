@@ -106,7 +106,8 @@ struct real_impl<std::complex<T> >
   EIGEN_DEVICE_FUNC
   static inline T run(const std::complex<T>& x)
   {
-    return x.real();
+    EIGEN_USING_STD(real);
+    return real(x);
   }
 };
 #endif
@@ -269,7 +270,7 @@ struct conj_impl<std::complex<T> >
   EIGEN_DEVICE_FUNC
   static inline std::complex<T> run(const std::complex<T>& x)
   {
-    return std::complex<T>(x.real(), -x.imag());
+    return std::complex<T>(numext::real(x), -numext::imag(x));
   }
 };
 #endif
@@ -302,7 +303,7 @@ struct abs2_impl_default<Scalar, true> // IsComplex
   EIGEN_DEVICE_FUNC
   static inline RealScalar run(const Scalar& x)
   {
-    return x.real()*x.real() + x.imag()*x.imag();
+    return numext::real(x)*numext::real(x) + numext::imag(x)*numext::imag(x);
   }
 };
 
@@ -397,7 +398,7 @@ struct norm1_default_impl<Scalar,true>
   static inline RealScalar run(const Scalar& x)
   {
     EIGEN_USING_STD(abs);
-    return abs(x.real()) + abs(x.imag());
+    return abs(numext::real(x)) + abs(numext::imag(x));
   }
 };
 
@@ -667,6 +668,39 @@ struct expm1_impl {
   }
 };
 
+<<<<<<< HEAD
+=======
+// Specialization for complex types that are not supported by std::expm1.
+template <typename RealScalar>
+struct expm1_impl<std::complex<RealScalar> > {
+  EIGEN_DEVICE_FUNC static inline std::complex<RealScalar> run(
+      const std::complex<RealScalar>& x) {
+    EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
+    RealScalar xr = numext::real(x);
+    RealScalar xi = numext::imag(x);
+    // expm1(z) = exp(z) - 1
+    //          = exp(x +  i * y) - 1
+    //          = exp(x) * (cos(y) + i * sin(y)) - 1
+    //          = exp(x) * cos(y) - 1 + i * exp(x) * sin(y)
+    // Imag(expm1(z)) = exp(x) * sin(y)
+    // Real(expm1(z)) = exp(x) * cos(y) - 1
+    //          = exp(x) * cos(y) - 1.
+    //          = expm1(x) + exp(x) * (cos(y) - 1)
+    //          = expm1(x) + exp(x) * (2 * sin(y / 2) ** 2)
+
+    // TODO better use numext::expm1 and numext::sin (but that would require forward declarations or moving this specialization down).
+    RealScalar erm1 = expm1_impl<RealScalar>::run(xr);
+    RealScalar er = erm1 + RealScalar(1.);
+    EIGEN_USING_STD(sin);
+    RealScalar sin2 = sin(xi / RealScalar(2.));
+    sin2 = sin2 * sin2;
+    RealScalar s = sin(xi);
+    RealScalar real_part = erm1 - RealScalar(2.) * er * sin2;
+    return std::complex<RealScalar>(real_part, er * s);
+  }
+};
+
+>>>>>>> 20dc0676e (ugh, trying to get this to work)
 template<typename Scalar>
 struct expm1_retval
 {
@@ -890,8 +924,8 @@ struct random_default_impl<Scalar, true, false>
 {
   static inline Scalar run(const Scalar& x, const Scalar& y)
   {
-    return Scalar(random(x.real(), y.real()),
-                  random(x.imag(), y.imag()));
+    return Scalar(random(numext::real(x), numext::real(y)),
+                  random(numext::imag(x), numext::imag(y)));
   }
   static inline Scalar run()
   {
@@ -1492,12 +1526,12 @@ double abs(const double &x) { return ::fabs(x); }
 
 template <> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 float abs(const std::complex<float>& x) {
-  return ::hypotf(x.real(), x.imag());
+  return ::hypotf(numext::real(x), numext::imag(x));
 }
 
 template <> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 double abs(const std::complex<double>& x) {
-  return ::hypot(x.real(), x.imag());
+  return ::hypot(numext::real(x), numext::imag(x));
 }
 #endif
 
@@ -1521,17 +1555,17 @@ double exp(const double &x) { return ::exp(x); }
 
 template<> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 std::complex<float> exp(const std::complex<float>& x) {
-  float com = ::expf(x.real());
-  float res_real = com * ::cosf(x.imag());
-  float res_imag = com * ::sinf(x.imag());
+  float com = ::expf(numext::real(x));
+  float res_real = com * ::cosf(numext::imag(x));
+  float res_imag = com * ::sinf(numext::imag(x));
   return std::complex<float>(res_real, res_imag);
 }
 
 template<> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 std::complex<double> exp(const std::complex<double>& x) {
-  double com = ::exp(x.real());
-  double res_real = com * ::cos(x.imag());
-  double res_imag = com * ::sin(x.imag());
+  double com = ::exp(numext::real(x));
+  double res_real = com * ::cos(numext::imag(x));
+  double res_imag = com * ::sin(numext::imag(x));
   return std::complex<double>(res_real, res_imag);
 }
 #endif

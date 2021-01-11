@@ -1567,36 +1567,75 @@ EIGEN_STRONG_INLINE void bload(PacketBlock<Packet,8>& acc, const DataMapper& res
 /****************
  * GEMM kernels *
  * **************/
+#ifdef __DEBUG__
+#include <cstdio>
+#endif
 template<typename Index, typename Scalar, typename Packet, typename DataMapper, int N>
 struct Microkernel
 {
     Microkernel<Index, Scalar,Packet, DataMapper, N-1> kernel;
     const Scalar *lhs_ptr;
     PacketBlock<Packet, BLOCK_SIZE> acc, accZero;
+    //Packet accZero;
 
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void preamble(const DataMapper &res, const Scalar* lhs_base, const Index& row, const Index& col, const Index& strideA, const Index& offsetA, const int& accCols)
     {
         kernel.preamble(res, lhs_base, row, col, strideA, offsetA, accCols);
-        lhs_ptr = lhs_base + ((row/accCols) + N)*strideA*accCols;
+        lhs_ptr = lhs_base + (row + N)*strideA;//((row/accCols) + N)*strideA*accCols;
         //prefetch(lhs_ptr);
 
         bload<DataMapper, Packet, Index, N>(acc, res, row, col, accCols);
         bsetzero<Scalar, Packet>(accZero);
+        //accZero = pset1<Packet>(0);
 
         lhs_ptr += accCols*offsetA;
     }
 
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar* rhs_ptr, const int& accCols)
+    //EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(PacketBlock<Packet, 4>& prhs, const int& accCols)
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar *rhs_ptr, const int& accCols)
     {
+        //kernel(prhs, accCols);
         kernel(rhs_ptr, accCols);
-        pger<Scalar, Packet, false>(&accZero, lhs_ptr, rhs_ptr);
+        //pger<Scalar, Packet, false>(&accZero, lhs_ptr, rhs_ptr);
+        __asm__("#blah\n\t");
+        /*
+        Packet prhs = *((Packet *) rhs_ptr);
+        Packet plhs = *((Packet *) lhs_ptr);
+        accZero.packet[0] += plhs*pset1<Packet>(prhs[0]);
+        */
+        Packet prhs = pload<Packet>(rhs_ptr);
+        Packet splatRhs1 = pset1<Packet>(prhs[0]);
+        Packet plhs = pload<Packet>(lhs_ptr);
+        Packet splatRhs2 = pset1<Packet>(prhs[1]);
+#ifdef __DEBUG__
+        printf("lhs: %.0f %.0f %.0f %.0f\n",plhs[0], plhs[1], plhs[2], plhs[3]);
+#endif
+        accZero.packet[0] += plhs*splatRhs1;
+        accZero.packet[1] += plhs*splatRhs2;
+        splatRhs1 = pset1<Packet>(prhs[2]);
+        splatRhs2 = pset1<Packet>(prhs[3]);
+        accZero.packet[2] += plhs*splatRhs1;
+        accZero.packet[3] += plhs*splatRhs2;
+        /*
+        accZero.packet[0] += plhs*prhs.packet[0];
+        accZero.packet[1] += plhs*prhs.packet[1];
+        accZero.packet[2] += plhs*prhs.packet[2];
+        accZero.packet[3] += plhs*prhs.packet[3];
+        */
         lhs_ptr += accCols;
+        __asm__("#bleh\n\t");
     }
 
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void postamble(const DataMapper& res, const Index& row, const Index& col, const Packet& pAlpha, const int& accCols)
     {
         kernel.postamble(res, row, col, pAlpha, accCols);
         bscale<Packet>(acc, accZero, pAlpha);
+#ifdef __DEBUG__
+        for(auto i = 0; i < 4; i++)
+        {
+          printf("acc%d: %.0f %.0f %.0f %.0f\n",i, acc.packet[i][0], acc.packet[i][1], acc.packet[i][2], acc.packet[i][3]);
+        }
+#endif
         res.template storePacketBlock<Packet, BLOCK_SIZE>(row + N*accCols, col, acc);
     }
 };
@@ -1605,6 +1644,7 @@ template<typename Index, typename Scalar, typename Packet, typename DataMapper>
 struct Microkernel<Index, Scalar, Packet, DataMapper, -1>
 {
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void preamble(const DataMapper&, const Scalar*, const Index&, const Index&, const Index&, const Index&, const int&) {}
+    //EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(PacketBlock<Packet, 4>&, const int&) {}
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const Scalar*, const int&) {}
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void postamble(const DataMapper&, const Index&, const Index&, const Packet&, const int&) {}
 };
@@ -1616,6 +1656,13 @@ struct PeelKernel
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void peel(Microkernel<Index, Scalar, Packet, DataMapper, N>& kernel, const Scalar* &rhs_ptr, const int& accCols, const int& accRows) const
     {
         peel_kernel.peel(kernel, rhs_ptr, accCols, accRows);
+        PacketBlock<Packet, BLOCK_SIZE> acc, accZero;
+        //PacketBlock<Packet,4> prhs;
+        //pbroadcast4(rhs_ptr, prhs.packet[0], prhs.packet[1], prhs.packet[2], prhs.packet[3]);
+#ifdef __DEBUG__
+        printf("rhs: %.0f %.0f %.0f %.0f\n", prhs.packet[0][0], prhs.packet[1][0], prhs.packet[2][0], prhs.packet[3][0]);
+#endif
+        //kernel(prhs, accCols);
         kernel(rhs_ptr, accCols);
         rhs_ptr += accRows;
     }
@@ -1679,23 +1726,29 @@ struct KernelOutterLoop
       Index k = 0;
       for(; k + PEEL_DEPTH < depth; k+= PEEL_DEPTH)
       {
-        prefetch(rhs_ptr + accRows);
-        prefetch(lhs_base + ((row/accCols))*strideA*accCols + (k + PEEL_DEPTH)*accCols);
+        //prefetch(rhs_ptr + accRows);
+        //prefetch(lhs_base + ((row/accCols))*strideA*accCols + (k + PEEL_DEPTH)*accCols);
         PeelKernel<Index, Scalar, Packet, DataMapper, PEEL-1, PEEL_DEPTH-1> peel_kernel;
         peel_kernel.peel(kernel, rhs_ptr, accCols, accRows);
       }
-
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 0*accCols,col));
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 1*accCols,col));
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 2*accCols,col));
-      EIGEN_ARM_STORE_PREFETCH(&res(row + 3*accCols,col));
-
       for(; k < depth; k++)
       {
+        PacketBlock<Packet,4> prhs;
+        //pbroadcast4(rhs_ptr, prhs.packet[0], prhs.packet[1], prhs.packet[2], prhs.packet[3]);
+#ifdef __DEBUG__
+        printf("rhs: %.0f %.0f %.0f %.0f\n", prhs.packet[0][0], prhs.packet[1][0], prhs.packet[2][0], prhs.packet[3][0]);
+#endif
+        //kernel(prhs, accCols);
         kernel(rhs_ptr, accCols);
         rhs_ptr += accRows;
       }
 
+      /*
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 0*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 1*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 2*accCols,col));
+      EIGEN_ARM_STORE_PREFETCH(&res(row + 3*accCols,col));
+      */
       kernel.postamble(res, row, col, pAlpha, accCols);
     }
     kernel_outter_loop(rhs_base, lhs_base, strideA, strideB, offsetA, offsetB, col, res, pAlpha, accCols, accRows, rows, depth, row);
@@ -1731,11 +1784,35 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
       if( strideA == -1 ) strideA = depth;
       if( strideB == -1 ) strideB = depth;
 
+#ifdef __DEBUG__
+      printf("blockA\n");
+      for(auto i = 0; i < rows; i++)
+      {
+        for(auto j = 0; j < depth; j++)
+        {
+          printf("%.0f ", blockA[i*strideA + j]);
+        }
+        printf("\n");
+      }
+      printf("\n");
+
+      printf("blockB\n");
+      for(auto i = 0; i < depth; i++)
+      {
+        for(auto j = 0; j < cols; j++)
+        {
+          printf("%.0f ", blockB[i*strideB + j]);
+        }
+        printf("\n");
+      }
+      printf("\n");
+#endif
+
       const Packet pAlpha = pset1<Packet>(alpha);
       Index col = 0;
       for(; col + accRows <= cols; col += accRows)
       {
-        const Scalar *rhs_base = blockB + ( col/accRows )*strideB*accRows;
+        const Scalar *rhs_base = blockB + col*strideB;//( col/accRows )*strideB*accRows;
         const Scalar *lhs_base = blockA;
 
         Index row = 0;
@@ -2653,6 +2730,7 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
 /************************************
  * ppc64le template specializations *
  * **********************************/
+/*
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
 struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
 {
@@ -2708,7 +2786,7 @@ void gemm_pack_rhs<double, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode
   rhs_pack<double, Index, DataMapper, Packet2d, RowMajor, PanelMode> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
-
+*/
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
 struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
 {
@@ -2736,6 +2814,7 @@ void gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Con
   lhs_pack<float, Index, DataMapper, Packet4f, ColMajor, PanelMode> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
+
 /*
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
 struct gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
@@ -2901,7 +2980,7 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
     const int accRows = quad_traits<float>::rows;
     const int accCols = quad_traits<float>::size;
 
-    gemm<float, Index, Packet, RhsPacket, DataMapper, 4, 9>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<float, Index, Packet, RhsPacket, DataMapper, 6, 8>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 
 /*
@@ -2997,7 +3076,7 @@ void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
     const int accRows = quad_traits<double>::rows;
     const int accCols = quad_traits<double>::size;
 
-    gemm<double, Index, Packet, RhsPacket, DataMapper, 8, 8>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
+    gemm<double, Index, Packet, RhsPacket, DataMapper, 1, 1>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB, accRows, accCols);
   }
 /*
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>

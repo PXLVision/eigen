@@ -47,12 +47,12 @@ public:
     if(IsLhs)
     {
       packed_stride = (rows / packetSize) * packetSize;
-      residue_block = packed_block + packed_stride*cols*packetSize;
+      residue_block = packed_block + packed_stride*cols;
       residue_size = rows % packetSize;
     }
     else {
       packed_stride = (cols / packetSize) * packetSize;
-      residue_block = packed_block + packed_stride*rows*packetSize;
+      residue_block = packed_block + packed_stride*rows;
       residue_size = cols % packetSize;
     }
 
@@ -132,7 +132,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
       pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
       auto row = 0;
       using LinearMapper = typename DataMapper::LinearMapper;
-      for(; row <= lhsMap.get_packed_size(); row+=accLhsProgress)
+      for(; row < lhsMap.get_packed_size(); row+=accLhsProgress)
       {
         LinearMapper r0 = res.getLinearMapper(row, col + 0);
         LinearMapper r1 = res.getLinearMapper(row, col + 1);
@@ -140,6 +140,11 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
         LinearMapper r3 = res.getLinearMapper(row, col + 3);
 
         LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
+#ifdef __DEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
+        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
+#endif
         acc.packet[0] = plhs*pbrhs.packet[0];
         acc.packet[1] = plhs*pbrhs.packet[1];
         acc.packet[2] = plhs*pbrhs.packet[2];
@@ -154,11 +159,16 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
       auto residue = 0;
       for(;row < rows; row++)
       {
-        LhsScalar lhs = *(lhsMap.get_residue_at(residue));
-        res(row,col + 0) += lhs*prhs[0];
-        res(row,col + 1) += lhs*prhs[1];
-        res(row,col + 2) += lhs*prhs[2];
-        res(row,col + 3) += lhs*prhs[3];
+        LhsScalar lhs = *(lhsMap.get_residue_at(residue) + k);
+#ifdef __DEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << lhs << " (" << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << ")" << std::endl;
+#endif
+        res(row, col + 0) += lhs*prhs[0];
+        res(row, col + 1) += lhs*prhs[1];
+        res(row, col + 2) += lhs*prhs[2];
+        res(row, col + 3) += lhs*prhs[3];
+        residue++;
       }
     }
   }

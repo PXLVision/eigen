@@ -24,6 +24,7 @@ class PackMap
   const Scalar *packed_block;
   const Scalar *residue_block;
   Index packed_stride;
+  Index residue_size;
   Index rows, cols;
   Index offset, stride;
   Scalar *cur;
@@ -31,9 +32,14 @@ public:
   PackMap(const Scalar *packed_block, const Scalar *residue_block, Index rows, Index cols, Index offset, Index stride) : packed_block(packed_block), residue_block(residue_block), rows(rows), cols(cols), offset(offset), stride(stride)
   {
     if(IsLhs)
+    {
       packed_stride = (rows / packetSize) * packetSize;
-    else
+      residue_size = rows % packetSize;
+    }
+    else {
       packed_stride = (cols / packetSize) * packetSize;
+      residue_size = cols % packetSize;
+    }
   };
 
   PackMap(const Scalar *packed_block, Index rows, Index cols, Index offset, Index stride) : packed_block(packed_block), rows(rows), cols(cols)
@@ -42,10 +48,12 @@ public:
     {
       packed_stride = (rows / packetSize) * packetSize;
       residue_block = packed_block + packed_stride*cols*packetSize;
+      residue_size = rows % packetSize;
     }
     else {
       packed_stride = (cols / packetSize) * packetSize;
       residue_block = packed_block + packed_stride*rows*packetSize;
+      residue_size = cols % packetSize;
     }
 
   };
@@ -55,9 +63,14 @@ public:
     return packed_stride;
   };
 
+  EIGEN_STRONG_INLINE Index get_residue_size()
+  {
+    return residue_size;
+  };
+
   EIGEN_STRONG_INLINE const Scalar* get_packed_at(Index at)
   {
-    return IsLhs ? packed_block + packed_stride*at : packed_block + packed_stride*at*;
+    return IsLhs ? packed_block + packed_stride*at : packed_block + at*packetSize*rows;
   };
 
   EIGEN_STRONG_INLINE const Scalar* get_residue_at(Index at)
@@ -106,23 +119,47 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
   PackMap<RhsScalar, RhsPacket, Index, false> rhsMap(blockB, depth, cols, offsetB, strideB);
   for(auto col = 0; col <= cols; col+=accRhsProgress)
   {
-    for(auto k = 0; k <= depth; k++)
+    for(auto k = 0; k < depth; k++)
     {
-      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(col);
-      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col);
-      AccPacket acc;
+      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(k);
+      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress) + k*accRhsProgress;
+      PacketBlock<AccPacket, 4> acc;
       RhsPacket prhs = pload<RhsPacket>(rhs_ptr);
       PacketBlock<RhsPacket, 4> pbrhs;
       pbrhs.packet[0] = pset1<RhsPacket>(prhs[0]);
       pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);
       pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);
       pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
-      for(auto row = 0; row < lhsMap.get_packed_size(); row+=accLhsProgress)
+      auto row = 0;
+      using LinearMapper = typename DataMapper::LinearMapper;
+      for(; row <= lhsMap.get_packed_size(); row+=accLhsProgress)
       {
+        LinearMapper r0 = res.getLinearMapper(row, col + 0);
+        LinearMapper r1 = res.getLinearMapper(row, col + 1);
+        LinearMapper r2 = res.getLinearMapper(row, col + 2);
+        LinearMapper r3 = res.getLinearMapper(row, col + 3);
+
         LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
-        acc = plhs*pbrhs.packet[0]; // C(1,c)C(2,c)C(3,c)C(4,c)
+        acc.packet[0] = plhs*pbrhs.packet[0];
+        acc.packet[1] = plhs*pbrhs.packet[1];
+        acc.packet[2] = plhs*pbrhs.packet[2];
+        acc.packet[3] = plhs*pbrhs.packet[3];
+
+        r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc.packet[0]);
+        r1.storePacket(0,r1.template loadPacket<ResPacket>(0) + acc.packet[1]);
+        r2.storePacket(0,r2.template loadPacket<ResPacket>(0) + acc.packet[2]);
+        r3.storePacket(0,r3.template loadPacket<ResPacket>(0) + acc.packet[3]);
+        lhs_ptr += accLhsProgress;
       }
-      lhs_ptr = lhsMap.get_residue_at()
+      auto residue = 0;
+      for(;row < rows; row++)
+      {
+        LhsScalar lhs = *(lhsMap.get_residue_at(residue));
+        res(row,col + 0) += lhs*prhs[0];
+        res(row,col + 1) += lhs*prhs[1];
+        res(row,col + 2) += lhs*prhs[2];
+        res(row,col + 3) += lhs*prhs[3];
+      }
     }
   }
 }

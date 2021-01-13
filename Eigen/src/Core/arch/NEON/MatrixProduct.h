@@ -117,7 +117,8 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
 
   PackMap<LhsScalar, LhsPacket, Index> lhsMap(blockA, rows, depth, offsetA, strideA);
   PackMap<RhsScalar, RhsPacket, Index, false> rhsMap(blockB, depth, cols, offsetB, strideB);
-  for(auto col = 0; col <= cols; col+=accRhsProgress)
+  auto col = 0;
+  for(; col < rhsMap.get_packed_size(); col+=accRhsProgress)
   {
     for(auto k = 0; k < depth; k++)
     {
@@ -140,7 +141,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
         LinearMapper r3 = res.getLinearMapper(row, col + 3);
 
         LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
-#ifdef __DEBUG__
+#ifdef __NDEBUG__
         std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
         std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
         std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
@@ -160,7 +161,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
       for(;row < rows; row++)
       {
         LhsScalar lhs = *(lhsMap.get_residue_at(residue) + k);
-#ifdef __DEBUG__
+#ifdef __NDEBUG__
         std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
         std::cout << "lhs " << lhs << " (" << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << ")" << std::endl;
 #endif
@@ -171,6 +172,49 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
         residue++;
       }
     }
+  }
+  auto colResidue = 0;
+  for(;col < cols; col++)
+  {
+    for(auto k = 0; k < depth; k++)
+    {
+      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(k);
+      const RhsScalar *rhs_ptr = rhsMap.get_residue_at(colResidue) + k;
+      AccPacket acc;
+
+      RhsPacket prhs = pset1<RhsPacket>(*rhs_ptr);
+
+
+      auto row = 0;
+      using LinearMapper = typename DataMapper::LinearMapper;
+      for(; row < lhsMap.get_packed_size(); row+=accLhsProgress)
+      {
+        LinearMapper r0 = res.getLinearMapper(row, col + 0);
+
+        LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
+#ifdef __DEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
+        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
+#endif
+        acc = plhs*prhs;
+
+        r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc);
+        lhs_ptr += accLhsProgress;
+      }
+      auto residue = 0;
+      for(;row < rows; row++)
+      {
+        LhsScalar lhs = *(lhsMap.get_residue_at(residue) + k);
+#ifdef __DEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << lhs << " (" << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << ")" << std::endl;
+#endif
+        res(row, col + 0) += lhs*prhs[0];
+        residue++;
+      }
+    }
+    colResidue++;
   }
 }
 

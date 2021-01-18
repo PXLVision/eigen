@@ -87,6 +87,104 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
   using LhsPacket = typename packet_traits<LhsScalar>::type;
   using RhsPacket = typename packet_traits<RhsScalar>::type;
   using ResPacket = typename packet_traits<ResScalar>::type;
+  using LinearMapper = typename DataMapper::LinearMapper;
+
+  ResPacket pAlpha = pset1<ResPacket>(alpha);
+
+#ifdef __DEBUG__
+  std::cout << "blockA" << std::endl;
+  for(auto i = 0; i < rows*depth; i++)
+  {
+    if(i % 4 == 0 && i > 0)
+      std::cout << std::endl;
+    std::cout << blockA[i] << " ";
+  }
+  std::cout << std::endl;
+  std::cout << "blockB" << std::endl;
+  for(auto i = 0; i < depth*cols; i++)
+  {
+    if(i % 4 == 0 && i > 0)
+      std::cout << std::endl;
+    std::cout << blockB[i] << " ";
+  }
+  std::cout << std::endl;
+#endif
+
+  if( strideA == -1 ) strideA = depth;
+  if( strideB == -1 ) strideB = depth;
+
+  int accLhsProgress = 4;
+  int accRhsProgress = 4;
+
+  PackMap<LhsScalar, LhsPacket, Index> lhsMap(blockA, rows, depth, offsetA, strideA);
+  PackMap<RhsScalar, RhsPacket, Index, false> rhsMap(blockB, depth, cols, offsetB, strideB);
+  auto col = 0;
+  for(; col < rhsMap.get_packed_size(); col+=accRhsProgress)
+  {
+    auto row = 0;
+    for(; row < lhsMap.get_packed_size(); row+=accLhsProgress)
+    {
+      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(row/accLhsProgress);
+      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);
+      PacketBlock<AccPacket, 4> acc;
+      acc.packet[0] = pset1<AccPacket>(0);
+      acc.packet[1] = pset1<AccPacket>(0);
+      acc.packet[2] = pset1<AccPacket>(0);
+      acc.packet[3] = pset1<AccPacket>(0);
+
+      LinearMapper r0 = res.getLinearMapper(row, col + 0);
+      LinearMapper r1 = res.getLinearMapper(row, col + 1);
+      LinearMapper r2 = res.getLinearMapper(row, col + 2);
+      LinearMapper r3 = res.getLinearMapper(row, col + 3);
+
+      auto k = 0;
+      for(; k < (depth/4)*4; k++)
+      {
+        RhsPacket prhs = pload<RhsPacket>(rhs_ptr);
+        PacketBlock<RhsPacket, 4> pbrhs;
+        pbrhs.packet[0] = pset1<RhsPacket>(prhs[0]);
+        pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);
+        pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);
+        pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
+
+        LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
+#ifdef __DEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
+        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
+#endif
+        acc.packet[0] += plhs*pbrhs.packet[0];
+        acc.packet[1] += plhs*pbrhs.packet[1];
+        acc.packet[2] += plhs*pbrhs.packet[2];
+        acc.packet[3] += plhs*pbrhs.packet[3];
+
+        lhs_ptr += accLhsProgress;
+        rhs_ptr += accRhsProgress;
+      }
+      //auto residue = 0;
+      for(; k < depth; k++)
+      {
+        //lhs_ptr = lhsMap.get_residue_at(residue) + row;
+        //rhs_ptr = rhsMap.get_residue_at(residue) + col;
+
+        residue++;
+      }
+      r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc.packet[0]);
+      r1.storePacket(0,r1.template loadPacket<ResPacket>(0) + acc.packet[1]);
+      r2.storePacket(0,r2.template loadPacket<ResPacket>(0) + acc.packet[2]);
+      r3.storePacket(0,r3.template loadPacket<ResPacket>(0) + acc.packet[3]);
+    }
+  }
+}
+
+template<typename ResScalar, typename AccScalar, typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper>
+EIGEN_STRONG_INLINE void gemm_old(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,
+          Index rows, Index depth, Index cols, ResScalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
+{
+  using AccPacket = typename packet_traits<AccScalar>::type;
+  using LhsPacket = typename packet_traits<LhsScalar>::type;
+  using RhsPacket = typename packet_traits<RhsScalar>::type;
+  using ResPacket = typename packet_traits<ResScalar>::type;
 
   ResPacket pAlpha = pset1<ResPacket>(alpha);
 

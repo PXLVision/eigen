@@ -89,13 +89,16 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
   using ResPacket = typename packet_traits<ResScalar>::type;
   using LinearMapper = typename DataMapper::LinearMapper;
 
+  if( strideA == -1 ) strideA = depth;
+  if( strideB == -1 ) strideB = depth;
+
   ResPacket pAlpha = pset1<ResPacket>(alpha);
 
 #ifdef __DEBUG__
   std::cout << "blockA" << std::endl;
   for(auto i = 0; i < rows*depth; i++)
   {
-    if(i % 4 == 0 && i > 0)
+    if(i % strideA == 0 && i > 0)
       std::cout << std::endl;
     std::cout << blockA[i] << " ";
   }
@@ -103,15 +106,12 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
   std::cout << "blockB" << std::endl;
   for(auto i = 0; i < depth*cols; i++)
   {
-    if(i % 4 == 0 && i > 0)
+    if(i % strideB == 0 && i > 0)
       std::cout << std::endl;
     std::cout << blockB[i] << " ";
   }
   std::cout << std::endl;
 #endif
-
-  if( strideA == -1 ) strideA = depth;
-  if( strideB == -1 ) strideB = depth;
 
   int accLhsProgress = 4;
   int accRhsProgress = 4;
@@ -138,7 +138,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
       LinearMapper r3 = res.getLinearMapper(row, col + 3);
 
       auto k = 0;
-      for(; k < (depth/4)*4; k++)
+      for(; k < depth; k++)
       {
         RhsPacket prhs = pload<RhsPacket>(rhs_ptr);
         PacketBlock<RhsPacket, 4> pbrhs;
@@ -148,7 +148,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
         pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
 
         LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
-#ifdef __DEBUG__
+#ifdef __NDEBUG__
         std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
         std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
         std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
@@ -158,17 +158,10 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
         acc.packet[2] += plhs*pbrhs.packet[2];
         acc.packet[3] += plhs*pbrhs.packet[3];
 
-        lhs_ptr += accLhsProgress;
+        lhs_ptr += (rows/accLhsProgress)*accLhsProgress;
         rhs_ptr += accRhsProgress;
       }
-      //auto residue = 0;
-      for(; k < depth; k++)
-      {
-        //lhs_ptr = lhsMap.get_residue_at(residue) + row;
-        //rhs_ptr = rhsMap.get_residue_at(residue) + col;
 
-        residue++;
-      }
       r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc.packet[0]);
       r1.storePacket(0,r1.template loadPacket<ResPacket>(0) + acc.packet[1]);
       r2.storePacket(0,r2.template loadPacket<ResPacket>(0) + acc.packet[2]);

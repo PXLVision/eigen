@@ -48,7 +48,7 @@ inline std::ptrdiff_t manage_caching_sizes_helper(std::ptrdiff_t a, std::ptrdiff
 #else
 #define EIGEN_SET_DEFAULT_L3_CACHE_SIZE(val) val
 #endif // defined(EIGEN_DEFAULT_L3_CACHE_SIZE)
-  
+
 #if EIGEN_ARCH_i386_OR_x86_64
 const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(32*1024);
 const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(256*1024);
@@ -436,10 +436,10 @@ struct packet_conditional<GEBPPacketHalf, T1, T2, T3> { typedef T2 type; };
 
 /* Vectorization logic
  *  real*real: unpack rhs to constant packets, ...
- * 
+ *
  *  cd*cd : unpack rhs to (b_r,b_r), (b_i,b_i), mul to get (a_r b_r,a_i b_r) (a_r b_i,a_i b_i),
  *          storing each res packet into two packets (2x2),
- *          at the end combine them: swap the second and addsub them 
+ *          at the end combine them: swap the second and addsub them
  *  cf*cf : same but with 2x4 blocks
  *  cplx*real : unpack rhs to constant packets, ...
  *  real*cplx : load lhs as (a0,a0,a1,a1), and mul as usual
@@ -463,7 +463,7 @@ public:
     LhsPacketSize = Vectorizable ? unpacket_traits<_LhsPacket>::size : 1,
     RhsPacketSize = Vectorizable ? unpacket_traits<_RhsPacket>::size : 1,
     ResPacketSize = Vectorizable ? unpacket_traits<_ResPacket>::size : 1,
-    
+
     NumberOfRegisters = EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS,
 
     // register block size along the N direction must be 1 or 4
@@ -481,7 +481,7 @@ public:
 #else
     mr = default_mr,
 #endif
-    
+
     LhsProgress = LhsPacketSize,
     RhsProgress = 1
   };
@@ -494,7 +494,7 @@ public:
 
   typedef QuadPacket<RhsPacket> RhsPacketx4;
   typedef ResPacket AccPacket;
-  
+
   EIGEN_STRONG_INLINE void initAcc(AccPacket& p)
   {
     p = pset1<ResPacket>(ResScalar(0));
@@ -564,7 +564,7 @@ public:
   {
     r = pmadd(c,alpha,r);
   }
-  
+
   template<typename ResPacketHalf>
   EIGEN_STRONG_INLINE void acc(const ResPacketHalf& c, const ResPacketHalf& alpha, ResPacketHalf& r) const
   {
@@ -592,7 +592,7 @@ public:
     LhsPacketSize = Vectorizable ? unpacket_traits<_LhsPacket>::size : 1,
     RhsPacketSize = Vectorizable ? unpacket_traits<_RhsPacket>::size : 1,
     ResPacketSize = Vectorizable ? unpacket_traits<_ResPacket>::size : 1,
-    
+
     NumberOfRegisters = EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS,
     nr = 4,
 #if defined(EIGEN_HAS_SINGLE_INSTRUCTION_MADD) && !defined(EIGEN_VECTORIZE_ALTIVEC) && !defined(EIGEN_VECTORIZE_VSX)
@@ -639,7 +639,7 @@ public:
 
   EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const
   {}
-  
+
   EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const
   {
     loadRhsQuad_impl(b,dest, typename conditional<RhsPacketSize==16,true_type,false_type>::type());
@@ -792,7 +792,7 @@ public:
   typedef std::complex<RealScalar>  LhsScalar;
   typedef std::complex<RealScalar>  RhsScalar;
   typedef std::complex<RealScalar>  ResScalar;
-  
+
   PACKET_DECL_COND_PREFIX(_, Lhs, _PacketSize);
   PACKET_DECL_COND_PREFIX(_, Rhs, _PacketSize);
   PACKET_DECL_COND_PREFIX(_, Res, _PacketSize);
@@ -816,7 +816,7 @@ public:
     LhsProgress = ResPacketSize,
     RhsProgress = 1
   };
-  
+
   typedef DoublePacket<RealPacket>                 DoublePacketType;
 
   typedef typename conditional<Vectorizable,ScalarPacket,Scalar>::type LhsPacket4Packing;
@@ -827,7 +827,7 @@ public:
 
   // this actualy holds 8 packets!
   typedef QuadPacket<RhsPacket> RhsPacketx4;
-  
+
   EIGEN_STRONG_INLINE void initAcc(Scalar& p) { p = Scalar(0); }
 
   EIGEN_STRONG_INLINE void initAcc(DoublePacketType& p)
@@ -872,7 +872,7 @@ public:
   }
 
   EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
-  
+
   EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, ResPacket& dest) const
   {
     loadRhs(b,dest);
@@ -914,9 +914,9 @@ public:
   {
     madd(a, b.get(lane), c, tmp, lane);
   }
-  
+
   EIGEN_STRONG_INLINE void acc(const Scalar& c, const Scalar& alpha, Scalar& r) const { r += alpha * c; }
-  
+
   template<typename RealPacketType, typename ResPacketType>
   EIGEN_STRONG_INLINE void acc(const DoublePacket<RealPacketType>& c, const ResPacketType& alpha, ResPacketType& r) const
   {
@@ -942,7 +942,7 @@ public:
       tmp = pcplxflip(ResPacketType(c.second));
       tmp = psub(pconj(ResPacketType(c.first)),tmp);
     }
-    
+
     r = pmadd(tmp,alpha,r);
   }
 
@@ -978,7 +978,7 @@ public:
     LhsPacketSize = Vectorizable ? unpacket_traits<_LhsPacket>::size : 1,
     RhsPacketSize = Vectorizable ? unpacket_traits<_RhsPacket>::size : 1,
     ResPacketSize = Vectorizable ? unpacket_traits<_ResPacket>::size : 1,
-    
+
     NumberOfRegisters = EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS,
     // FIXME: should depend on NumberOfRegisters
     nr = 4,
@@ -1024,7 +1024,7 @@ public:
   {
     dest = ploaddup<LhsPacket>(a);
   }
-  
+
   EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const
   {
     dest = ploadquad<RhsPacket>(b);
@@ -1051,7 +1051,7 @@ public:
 #else
     tmp = b; tmp.v = pmul(a,tmp.v); c = padd(c,tmp);
 #endif
-    
+
   }
 
   EIGEN_STRONG_INLINE void madd_impl(const LhsScalar& a, const RhsScalar& b, ResScalar& c, RhsScalar& /*tmp*/, const false_type&) const
@@ -1089,7 +1089,7 @@ struct gebp_kernel
   typedef gebp_traits<LhsScalar,RhsScalar,ConjugateLhs,ConjugateRhs,Architecture::Target> Traits;
   typedef gebp_traits<LhsScalar,RhsScalar,ConjugateLhs,ConjugateRhs,Architecture::Target,GEBPPacketHalf> HalfTraits;
   typedef gebp_traits<LhsScalar,RhsScalar,ConjugateLhs,ConjugateRhs,Architecture::Target,GEBPPacketQuarter> QuarterTraits;
-  
+
   typedef typename Traits::ResScalar ResScalar;
   typedef typename Traits::LhsPacket LhsPacket;
   typedef typename Traits::RhsPacket RhsPacket;
@@ -1265,7 +1265,7 @@ struct lhs_process_one_packet
         traits.initAcc(C3);
         // To improve instruction pipelining, let's double the accumulation registers:
         //  even k will accumulate in C*, while odd k will accumulate in D*.
-        // This trick is crutial to get good performance with FMA, otherwise it is 
+        // This trick is crutial to get good performance with FMA, otherwise it is
         // actually faster to perform separated MUL+ADD because of a naturally
         // better instruction-level parallelism.
         AccPacket D0, D1, D2, D3;
@@ -1438,7 +1438,7 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
   {
     Traits traits;
     SwappedTraits straits;
-    
+
     if(strideA==-1) strideA = depth;
     if(strideB==-1) strideB = depth;
     conj_helper<LhsScalar,RhsScalar,ConjugateLhs,ConjugateRhs> cj;
@@ -1450,9 +1450,27 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
     const Index peeled_mc_quarter = mr>=LhsProgressQuarter ? peeled_mc_half+((rows-peeled_mc_half)/(LhsProgressQuarter))*(LhsProgressQuarter) : 0;
     enum { pk = 8 }; // NOTE Such a large peeling factor is important for large matrices (~ +5% when >1000 on Haswell)
     const Index peeled_kc  = depth & ~(pk-1);
-    const int prefetch_res_offset = 32/sizeof(ResScalar);    
+    const int prefetch_res_offset = 32/sizeof(ResScalar);
 //     const Index depth2     = depth & ~1;
-
+  #ifdef __DEBUG__
+    #include<iostream>
+    std::cout << "blockA" << std::endl;
+    for(auto i = 0; i < rows*depth; i++)
+    {
+      if(i % strideA == 0 && i > 0)
+        std::cout << std::endl;
+      std::cout << blockA[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "blockB" << std::endl;
+    for(auto i = 0; i < depth*cols; i++)
+    {
+      if(i % strideB == 0 && i > 0)
+        std::cout << std::endl;
+      std::cout << blockB[i] << " ";
+    }
+    std::cout << std::endl;
+  #endif
     //---------- Process 3 * LhsProgress rows at once ----------
     // This corresponds to 3*LhsProgress x nr register blocks.
     // Usually, make sense only with FMA
@@ -1475,10 +1493,10 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
         {
           for(Index i=i1; i<actual_panel_end; i+=3*LhsProgress)
           {
-          
+
           // We selected a 3*Traits::LhsProgress x nr micro block of res which is entirely
           // stored into 3 x nr registers.
-          
+
           const LhsScalar* blA = &blockA[i*strideA+offsetA*(3*LhsProgress)];
           prefetch(&blA[0]);
 
@@ -1620,7 +1638,7 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
           traits.acc(C11, alphav, R2);
           r3.storePacket(0 * Traits::ResPacketSize, R0);
           r3.storePacket(1 * Traits::ResPacketSize, R1);
-          r3.storePacket(2 * Traits::ResPacketSize, R2);          
+          r3.storePacket(2 * Traits::ResPacketSize, R2);
           }
         }
 
@@ -1645,7 +1663,7 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
           // performs "inner" products
           const RhsScalar* blB = &blockB[j2*strideB+offsetB];
           LhsPacket A0, A1, A2;
-          
+
           for(Index k=0; k<peeled_kc; k+=pk)
           {
             EIGEN_ASM_COMMENT("begin gebp micro kernel 3pX1");
@@ -1699,7 +1717,7 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
           traits.acc(C8, alphav, R2);
           r0.storePacket(0 * Traits::ResPacketSize, R0);
           r0.storePacket(1 * Traits::ResPacketSize, R1);
-          r0.storePacket(2 * Traits::ResPacketSize, R2);          
+          r0.storePacket(2 * Traits::ResPacketSize, R2);
           }
         }
       }
@@ -1721,10 +1739,10 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
         {
           for(Index i=i1; i<actual_panel_end; i+=2*LhsProgress)
           {
-          
+
           // We selected a 2*Traits::LhsProgress x nr micro block of res which is entirely
           // stored into 2 x nr registers.
-          
+
           const LhsScalar* blA = &blockA[i*strideA+offsetA*(2*Traits::LhsProgress)];
           prefetch(&blA[0]);
 
@@ -1778,6 +1796,11 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
               traits.madd(A1, rhs_panel, C7, T0, fix<3>);                 \
               EIGEN_GEBP_2PX4_SPILLING_WORKAROUND                         \
               EIGEN_ASM_COMMENT("end step of gebp micro kernel 2pX4");    \
+        std::cout << "(" << i << "," << k << "," << j2 << ")" << std::endl; \
+        std::cout << "lhs " << (0 + 2 * K) * LhsProgress << " - " << A0[0] << " " << A0[1] << " " << A0[2] << " " << A0[3] << std::endl; \
+        std::cout << "lhs " << (1 + 2 * K) * LhsProgress << " - " << A1[0] << " " << A1[1] << " " << A1[2] << " " << A1[3] << std::endl; \
+        AccPacket prhs = pload<AccPacket>(&blB[(0 + 4 * K) * RhsProgress]); \
+        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl; \
             } while (false)
 
             internal::prefetch(blB+(48+0));
@@ -1837,7 +1860,7 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
           r3.storePacket(1 * Traits::ResPacketSize, R3);
           }
         }
-      
+
         // Deal with remaining columns of the rhs
         for(Index j2=packet_cols4; j2<cols; j2++)
         {
@@ -1863,7 +1886,7 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
           {
             EIGEN_ASM_COMMENT("begin gebp micro kernel 2pX1");
             RhsPacket B_0, B1;
-        
+
 #define EIGEN_GEBGP_ONESTEP(K) \
             do {                                                                  \
               EIGEN_ASM_COMMENT("begin step of gebp micro kernel 2pX1");          \
@@ -1875,7 +1898,7 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
               traits.madd(A1, B_0, C4, B_0, fix<0>);                              \
               EIGEN_ASM_COMMENT("end step of gebp micro kernel 2pX1");            \
             } while(false)
-        
+
             EIGEN_GEBGP_ONESTEP(0);
             EIGEN_GEBGP_ONESTEP(1);
             EIGEN_GEBGP_ONESTEP(2);
@@ -2062,12 +2085,12 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
               B_1 = blB[1];
               CJMADD(cj,A0,B_0,C0,  B_0);
               CJMADD(cj,A0,B_1,C1,  B_1);
-              
+
               B_0 = blB[2];
               B_1 = blB[3];
               CJMADD(cj,A0,B_0,C2,  B_0);
               CJMADD(cj,A0,B_1,C3,  B_1);
-              
+
               blB += 4;
             }
             res(i, j2 + 0) += alpha * C0;
@@ -2653,7 +2676,7 @@ inline std::ptrdiff_t l2CacheSize()
 }
 
 /** \returns the currently set level 3 cpu cache size (in bytes) used to estimate the ideal blocking size paramete\
-rs.                                                                                                                
+rs.
 * \sa setCpuCacheSize */
 inline std::ptrdiff_t l3CacheSize()
 {

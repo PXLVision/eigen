@@ -79,6 +79,78 @@ public:
   };
 };
 
+template<typename ResScalar, typename AccScalar, typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int N>
+struct KernelRowLoop
+{
+  KernelRowLoop<ResScalar, AccScalar, LhsScalar, RhsScalar, Index, DataMapper, N-1> kernelRowLoop;
+  using AccPacket = typename packet_traits<AccScalar>::type;
+  using LhsPacket = typename packet_traits<LhsScalar>::type;
+  using RhsPacket = typename packet_traits<RhsScalar>::type;
+  using ResPacket = typename packet_traits<ResScalar>::type;
+  //using LinearMapper = typename DataMapper::LinearMapper;
+
+  const LhsScalar *lhs_ptr;
+  PacketBlock<AccPacket, 4> acc;
+  int _accLhsProgress;
+  Index _row,_col;
+  //LinearMapper r0, r1, r2, r3;
+
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void preamble(const DataMapper& res, PackMap<LhsScalar, LhsPacket, Index>& lhsMap, Index row, Index col, int accLhsProgress)
+  {
+    kernelRowLoop.preamble(res, lhsMap, row, col, accLhsProgress);
+    _accLhsProgress = accLhsProgress;
+    _row = row;
+    _col = col;
+    lhs_ptr = lhsMap.get_packed_at(row + N*accLhsProgress);
+
+    acc.packet[0] = pset1<AccPacket>(0);
+    acc.packet[1] = pset1<AccPacket>(0);
+    acc.packet[2] = pset1<AccPacket>(0);
+    acc.packet[3] = pset1<AccPacket>(0);
+/*
+    r0 = &res.getLinearMapper(row + N*accLhsProgress, col + 0);
+    r1 = &res.getLinearMapper(row + N*accLhsProgress, col + 1);
+    r2 = &res.getLinearMapper(row + N*accLhsProgress, col + 2);
+    r3 = &res.getLinearMapper(row + N*accLhsProgress, col + 3);*/
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(const PacketBlock<RhsPacket, 4>& pbrhs, Index offset)
+  {
+    kernelRowLoop(pbrhs, offset);
+
+    LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
+    acc.packet[0] += plhs*pbrhs.packet[0];
+    acc.packet[1] += plhs*pbrhs.packet[1];
+    acc.packet[2] += plhs*pbrhs.packet[2];
+    acc.packet[3] += plhs*pbrhs.packet[3];
+
+    lhs_ptr += offset;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void postamble(const DataMapper& res)
+  {
+    kernelRowLoop.postamble(res);
+
+    res.template storePacketBlock<ResPacket, 4>(_row + N*_accLhsProgress, _col, acc);
+    /*
+    r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc.packet[0]);
+    r1.storePacket(0,r1.template loadPacket<ResPacket>(0) + acc.packet[1]);
+    r2.storePacket(0,r2.template loadPacket<ResPacket>(0) + acc.packet[2]);
+    r3.storePacket(0,r3.template loadPacket<ResPacket>(0) + acc.packet[3]);*/
+  }
+};
+
+template<typename ResScalar, typename AccScalar, typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper>
+struct KernelRowLoop<ResScalar, AccScalar, LhsScalar, RhsScalar, Index, DataMapper, -1>
+{
+  using LhsPacket = typename packet_traits<LhsScalar>::type;
+  using RhsPacket = typename packet_traits<RhsScalar>::type;
+
+  EIGEN_STRONG_INLINE void preamble(const DataMapper&, PackMap<LhsScalar, LhsPacket, Index>&, Index, Index, int) {}
+  EIGEN_STRONG_INLINE void operator()(const PacketBlock<RhsPacket, 4>&, Index){}
+  EIGEN_STRONG_INLINE void postamble(const DataMapper&) {}
+};
+
 template<typename ResScalar, typename AccScalar, typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper>
 EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,
           Index rows, Index depth, Index cols, ResScalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
@@ -122,208 +194,39 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
   for(; col + accRhsProgress <= rhsMap.get_packed_size(); col+=accRhsProgress)
   {
     auto row = 0;
-    for(; row + 3*accLhsProgress <= lhsMap.get_packed_size(); row+=3*accLhsProgress)
-    {
-      const LhsScalar *lhs_ptr1 = lhsMap.get_packed_at(row + 0*accLhsProgress);
-      const LhsScalar *lhs_ptr2 = lhsMap.get_packed_at(row + 1*accLhsProgress);
-      const LhsScalar *lhs_ptr3 = lhsMap.get_packed_at(row + 2*accLhsProgress);
-      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);
-
-      PacketBlock<AccPacket, 4> acc1;
-      acc1.packet[0] = pset1<AccPacket>(0);
-      acc1.packet[1] = pset1<AccPacket>(0);
-      acc1.packet[2] = pset1<AccPacket>(0);
-      acc1.packet[3] = pset1<AccPacket>(0);
-
-      PacketBlock<AccPacket, 4> acc2;
-      acc2.packet[0] = pset1<AccPacket>(0);
-      acc2.packet[1] = pset1<AccPacket>(0);
-      acc2.packet[2] = pset1<AccPacket>(0);
-      acc2.packet[3] = pset1<AccPacket>(0);
-
-      PacketBlock<AccPacket, 4> acc3;
-      acc3.packet[0] = pset1<AccPacket>(0);
-      acc3.packet[1] = pset1<AccPacket>(0);
-      acc3.packet[2] = pset1<AccPacket>(0);
-      acc3.packet[3] = pset1<AccPacket>(0);
-
-      LinearMapper r00 = res.getLinearMapper(row + 0*accLhsProgress, col + 0);
-      LinearMapper r01 = res.getLinearMapper(row + 0*accLhsProgress, col + 1);
-      LinearMapper r02 = res.getLinearMapper(row + 0*accLhsProgress, col + 2);
-      LinearMapper r03 = res.getLinearMapper(row + 0*accLhsProgress, col + 3);
-
-      LinearMapper r10 = res.getLinearMapper(row + 1*accLhsProgress, col + 0);
-      LinearMapper r11 = res.getLinearMapper(row + 1*accLhsProgress, col + 1);
-      LinearMapper r12 = res.getLinearMapper(row + 1*accLhsProgress, col + 2);
-      LinearMapper r13 = res.getLinearMapper(row + 1*accLhsProgress, col + 3);
-
-      LinearMapper r20 = res.getLinearMapper(row + 2*accLhsProgress, col + 0);
-      LinearMapper r21 = res.getLinearMapper(row + 2*accLhsProgress, col + 1);
-      LinearMapper r22 = res.getLinearMapper(row + 2*accLhsProgress, col + 2);
-      LinearMapper r23 = res.getLinearMapper(row + 2*accLhsProgress, col + 3);
-
-      auto k = 0;
-      for(; k < depth; k++)
-      {
-        RhsPacket prhs = pload<RhsPacket>(rhs_ptr);
-        PacketBlock<RhsPacket, 4> pbrhs;
-        pbrhs.packet[0] = pset1<RhsPacket>(prhs[0]);
-        pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);
-        pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);
-        pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
-
-        LhsPacket plhs1 = pload<LhsPacket>(lhs_ptr1);
-        LhsPacket plhs2 = pload<LhsPacket>(lhs_ptr2);
-        LhsPacket plhs3 = pload<LhsPacket>(lhs_ptr3);
-
-        acc1.packet[0] += plhs1*pbrhs.packet[0];
-        acc1.packet[1] += plhs1*pbrhs.packet[1];
-        acc1.packet[2] += plhs1*pbrhs.packet[2];
-        acc1.packet[3] += plhs1*pbrhs.packet[3];
-
-        acc2.packet[0] += plhs2*pbrhs.packet[0];
-        acc2.packet[1] += plhs2*pbrhs.packet[1];
-        acc2.packet[2] += plhs2*pbrhs.packet[2];
-        acc2.packet[3] += plhs2*pbrhs.packet[3];
-
-        acc3.packet[0] += plhs3*pbrhs.packet[0];
-        acc3.packet[1] += plhs3*pbrhs.packet[1];
-        acc3.packet[2] += plhs3*pbrhs.packet[2];
-        acc3.packet[3] += plhs3*pbrhs.packet[3];
-
-        lhs_ptr1 += (rows/accLhsProgress)*accLhsProgress;
-        lhs_ptr2 += (rows/accLhsProgress)*accLhsProgress;
-        lhs_ptr3 += (rows/accLhsProgress)*accLhsProgress;
-        rhs_ptr += accRhsProgress;
-      }
-
-      r00.storePacket(0,r00.template loadPacket<ResPacket>(0) + acc1.packet[0]);
-      r01.storePacket(0,r01.template loadPacket<ResPacket>(0) + acc1.packet[1]);
-      r02.storePacket(0,r02.template loadPacket<ResPacket>(0) + acc1.packet[2]);
-      r03.storePacket(0,r03.template loadPacket<ResPacket>(0) + acc1.packet[3]);
-
-      r10.storePacket(0,r10.template loadPacket<ResPacket>(0) + acc2.packet[0]);
-      r11.storePacket(0,r11.template loadPacket<ResPacket>(0) + acc2.packet[1]);
-      r12.storePacket(0,r12.template loadPacket<ResPacket>(0) + acc2.packet[2]);
-      r13.storePacket(0,r13.template loadPacket<ResPacket>(0) + acc2.packet[3]);
-
-      r20.storePacket(0,r20.template loadPacket<ResPacket>(0) + acc3.packet[0]);
-      r21.storePacket(0,r21.template loadPacket<ResPacket>(0) + acc3.packet[1]);
-      r22.storePacket(0,r22.template loadPacket<ResPacket>(0) + acc3.packet[2]);
-      r23.storePacket(0,r23.template loadPacket<ResPacket>(0) + acc3.packet[3]);
+#define ROW_LOOP(K)                                                                               \
+    for(; row + K*accLhsProgress <= lhsMap.get_packed_size(); row+=K*accLhsProgress)              \
+    {                                                                                             \
+      KernelRowLoop<ResScalar, AccScalar, LhsScalar, RhsScalar, Index, DataMapper, (K-1)> kRL;    \
+      kRL.preamble(res, lhsMap, row, col, accLhsProgress);                                        \
+                                                                                                  \
+      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);                        \
+                                                                                                  \
+      auto k = 0;                                                                                 \
+      for(; k < depth; k++)                                                                       \
+      {                                                                                           \
+        RhsPacket prhs = pload<RhsPacket>(rhs_ptr);                                               \
+        PacketBlock<RhsPacket, 4> pbrhs;                                                          \
+        pbrhs.packet[0] = pset1<RhsPacket>(prhs[0]);                                              \
+        pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);                                              \
+        pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);                                              \
+        pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);                                              \
+                                                                                                  \
+        kRL(pbrhs, (rows/accLhsProgress)*accLhsProgress);                                         \
+                                                                                                  \
+        rhs_ptr += accRhsProgress;                                                                \
+      }                                                                                           \
+                                                                                                  \
+      kRL.postamble(res);                                                                         \
     }
-    for(; row + 2*accLhsProgress <= lhsMap.get_packed_size(); row+=2*accLhsProgress)
-    {
-      const LhsScalar *lhs_ptr1 = lhsMap.get_packed_at(row + 0*accLhsProgress);
-      const LhsScalar *lhs_ptr2 = lhsMap.get_packed_at(row + 1*accLhsProgress);
-      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);
 
-      PacketBlock<AccPacket, 4> acc1;
-      acc1.packet[0] = pset1<AccPacket>(0);
-      acc1.packet[1] = pset1<AccPacket>(0);
-      acc1.packet[2] = pset1<AccPacket>(0);
-      acc1.packet[3] = pset1<AccPacket>(0);
+    ROW_LOOP(6);
+    ROW_LOOP(5);
+    ROW_LOOP(4);
+    ROW_LOOP(3);
+    ROW_LOOP(2);
+    ROW_LOOP(1);
 
-      PacketBlock<AccPacket, 4> acc2;
-      acc2.packet[0] = pset1<AccPacket>(0);
-      acc2.packet[1] = pset1<AccPacket>(0);
-      acc2.packet[2] = pset1<AccPacket>(0);
-      acc2.packet[3] = pset1<AccPacket>(0);
-
-      LinearMapper r00 = res.getLinearMapper(row + 0*accLhsProgress, col + 0);
-      LinearMapper r01 = res.getLinearMapper(row + 0*accLhsProgress, col + 1);
-      LinearMapper r02 = res.getLinearMapper(row + 0*accLhsProgress, col + 2);
-      LinearMapper r03 = res.getLinearMapper(row + 0*accLhsProgress, col + 3);
-
-      LinearMapper r10 = res.getLinearMapper(row + 1*accLhsProgress, col + 0);
-      LinearMapper r11 = res.getLinearMapper(row + 1*accLhsProgress, col + 1);
-      LinearMapper r12 = res.getLinearMapper(row + 1*accLhsProgress, col + 2);
-      LinearMapper r13 = res.getLinearMapper(row + 1*accLhsProgress, col + 3);
-
-      auto k = 0;
-      for(; k < depth; k++)
-      {
-        RhsPacket prhs = pload<RhsPacket>(rhs_ptr);
-        PacketBlock<RhsPacket, 4> pbrhs;
-        pbrhs.packet[0] = pset1<RhsPacket>(prhs[0]);
-        pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);
-        pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);
-        pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
-
-        LhsPacket plhs1 = pload<LhsPacket>(lhs_ptr1);
-        LhsPacket plhs2 = pload<LhsPacket>(lhs_ptr2);
-
-        acc1.packet[0] += plhs1*pbrhs.packet[0];
-        acc1.packet[1] += plhs1*pbrhs.packet[1];
-        acc1.packet[2] += plhs1*pbrhs.packet[2];
-        acc1.packet[3] += plhs1*pbrhs.packet[3];
-
-        acc2.packet[0] += plhs2*pbrhs.packet[0];
-        acc2.packet[1] += plhs2*pbrhs.packet[1];
-        acc2.packet[2] += plhs2*pbrhs.packet[2];
-        acc2.packet[3] += plhs2*pbrhs.packet[3];
-
-        lhs_ptr1 += (rows/accLhsProgress)*accLhsProgress;
-        lhs_ptr2 += (rows/accLhsProgress)*accLhsProgress;
-        rhs_ptr += accRhsProgress;
-      }
-
-      r00.storePacket(0,r00.template loadPacket<ResPacket>(0) + acc1.packet[0]);
-      r01.storePacket(0,r01.template loadPacket<ResPacket>(0) + acc1.packet[1]);
-      r02.storePacket(0,r02.template loadPacket<ResPacket>(0) + acc1.packet[2]);
-      r03.storePacket(0,r03.template loadPacket<ResPacket>(0) + acc1.packet[3]);
-
-      r10.storePacket(0,r10.template loadPacket<ResPacket>(0) + acc2.packet[0]);
-      r11.storePacket(0,r11.template loadPacket<ResPacket>(0) + acc2.packet[1]);
-      r12.storePacket(0,r12.template loadPacket<ResPacket>(0) + acc2.packet[2]);
-      r13.storePacket(0,r13.template loadPacket<ResPacket>(0) + acc2.packet[3]);
-    }
-    for(; row + accLhsProgress <= lhsMap.get_packed_size(); row+=accLhsProgress)
-    {
-      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(row);
-      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);
-      PacketBlock<AccPacket, 4> acc;
-      acc.packet[0] = pset1<AccPacket>(0);
-      acc.packet[1] = pset1<AccPacket>(0);
-      acc.packet[2] = pset1<AccPacket>(0);
-      acc.packet[3] = pset1<AccPacket>(0);
-
-      LinearMapper r0 = res.getLinearMapper(row, col + 0);
-      LinearMapper r1 = res.getLinearMapper(row, col + 1);
-      LinearMapper r2 = res.getLinearMapper(row, col + 2);
-      LinearMapper r3 = res.getLinearMapper(row, col + 3);
-
-      auto k = 0;
-      for(; k < depth; k++)
-      {
-        RhsPacket prhs = pload<RhsPacket>(rhs_ptr);
-        PacketBlock<RhsPacket, 4> pbrhs;
-        pbrhs.packet[0] = pset1<RhsPacket>(prhs[0]);
-        pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);
-        pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);
-        pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
-
-        LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
-
-#ifdef __NDEBUG__
-        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
-        std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
-        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
-#endif
-        acc.packet[0] += plhs*pbrhs.packet[0];
-        acc.packet[1] += plhs*pbrhs.packet[1];
-        acc.packet[2] += plhs*pbrhs.packet[2];
-        acc.packet[3] += plhs*pbrhs.packet[3];
-
-        lhs_ptr += (rows/accLhsProgress)*accLhsProgress;
-        rhs_ptr += accRhsProgress;
-      }
-
-      r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc.packet[0]);
-      r1.storePacket(0,r1.template loadPacket<ResPacket>(0) + acc.packet[1]);
-      r2.storePacket(0,r2.template loadPacket<ResPacket>(0) + acc.packet[2]);
-      r3.storePacket(0,r3.template loadPacket<ResPacket>(0) + acc.packet[3]);
-    }
     auto row_residue = 0;
     for(;row < rows; row++)
     {
@@ -415,7 +318,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
     }
     col_residue++;
   }
-}
+};
 
 template<typename ResScalar, typename AccScalar, typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper>
 EIGEN_STRONG_INLINE void gemm_old(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,

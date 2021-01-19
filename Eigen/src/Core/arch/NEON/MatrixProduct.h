@@ -70,7 +70,7 @@ public:
 
   EIGEN_STRONG_INLINE const Scalar* get_packed_at(Index at)
   {
-    return IsLhs ? packed_block + packed_stride*at : packed_block + at*packetSize*rows;
+    return IsLhs ? packed_block + at : packed_block + at*packetSize*rows;
   };
 
   EIGEN_STRONG_INLINE const Scalar* get_residue_at(Index at)
@@ -124,7 +124,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
     auto row = 0;
     for(; row < lhsMap.get_packed_size(); row+=accLhsProgress)
     {
-      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(row/accLhsProgress);
+      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(row);
       const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);
       PacketBlock<AccPacket, 4> acc;
       acc.packet[0] = pset1<AccPacket>(0);

@@ -119,10 +119,10 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
   PackMap<LhsScalar, LhsPacket, Index> lhsMap(blockA, rows, depth, offsetA, strideA);
   PackMap<RhsScalar, RhsPacket, Index, false> rhsMap(blockB, depth, cols, offsetB, strideB);
   auto col = 0;
-  for(; col < rhsMap.get_packed_size(); col+=accRhsProgress)
+  for(; col + accRhsProgress <= rhsMap.get_packed_size(); col+=accRhsProgress)
   {
     auto row = 0;
-    for(; row < lhsMap.get_packed_size(); row+=accLhsProgress)
+    for(; row + accLhsProgress <= lhsMap.get_packed_size(); row+=accLhsProgress)
     {
       const LhsScalar *lhs_ptr = lhsMap.get_packed_at(row);
       const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);
@@ -148,6 +148,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
         pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);
 
         LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
+
 #ifdef __NDEBUG__
         std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
         std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
@@ -167,6 +168,96 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
       r2.storePacket(0,r2.template loadPacket<ResPacket>(0) + acc.packet[2]);
       r3.storePacket(0,r3.template loadPacket<ResPacket>(0) + acc.packet[3]);
     }
+    auto row_residue = 0;
+    for(;row < rows; row++)
+    {
+      const LhsScalar *lhs_ptr = lhsMap.get_residue_at(row_residue);
+      const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);
+      PacketBlock<AccPacket, 1> acc;
+      acc.packet[0] = pset1<AccPacket>(0);
+
+      auto k = 0;
+      for(; k < depth; k++)
+      {
+        RhsPacket prhs = pload<RhsPacket>(rhs_ptr);
+        LhsPacket plhs = pset1<LhsPacket>(*lhs_ptr);
+
+#ifdef __NDEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
+        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
+#endif
+        acc.packet[0] += (*lhs_ptr)*prhs;
+
+        lhs_ptr++;
+        rhs_ptr += accRhsProgress;
+      }
+
+      res(row, col + 0) += acc.packet[0][0];
+      res(row, col + 1) += acc.packet[0][1];
+      res(row, col + 2) += acc.packet[0][2];
+      res(row, col + 3) += acc.packet[0][3];
+      row_residue++;
+    }
+  }
+  auto col_residue = 0;
+  for(; col < cols; col++)
+  {
+    auto row = 0;
+    for(; row + accLhsProgress <= lhsMap.get_packed_size(); row+=accLhsProgress)
+    {
+      const LhsScalar *lhs_ptr = lhsMap.get_packed_at(row);
+      const RhsScalar *rhs_ptr = rhsMap.get_residue_at(col_residue);
+      PacketBlock<AccPacket, 1> acc;
+      acc.packet[0] = pset1<AccPacket>(0);
+
+      LinearMapper r0 = res.getLinearMapper(row, col + 0);
+
+      auto k = 0;
+      for(; k < depth; k++)
+      {
+        RhsPacket prhs = pset1<RhsPacket>(*rhs_ptr);
+
+        LhsPacket plhs = pload<LhsPacket>(lhs_ptr);
+
+#ifdef __NDEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
+        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
+#endif
+        acc.packet[0] += plhs*prhs;
+
+        lhs_ptr += (rows/accLhsProgress)*accLhsProgress;
+        rhs_ptr++;
+      }
+
+      r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc.packet[0]);
+    }
+    auto row_residue = 0;
+    for(;row < rows; row++)
+    {
+      const LhsScalar *lhs_ptr = lhsMap.get_residue_at(row_residue);
+      const RhsScalar *rhs_ptr = rhsMap.get_residue_at(col_residue);
+      AccScalar acc = 0;
+      auto k = 0;
+      for(; k < depth; k++)
+      {
+#ifdef __NDEBUG__
+        std::cout << "(" << row << "," << k << "," << col << ")" << std::endl;
+        std::cout << "lhs " << plhs[0] << " " << plhs[1] << " " << plhs[2] << " " << plhs[3] << std::endl;
+        std::cout << "rhs " << prhs[0] << " " << prhs[1] << " " << prhs[2] << " " << prhs[3] << std::endl;
+#endif
+        acc += (*lhs_ptr)*(*rhs_ptr);
+
+        lhs_ptr++;
+        rhs_ptr++;
+      }
+
+      //r0.storePacket(0,r0.template loadPacket<ResPacket>(0) + acc.packet[0]);
+      res(row, col) += acc;
+      row_residue++;
+    }
+    col_residue++;
   }
 }
 

@@ -184,87 +184,6 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
   PackMap<LhsScalar, LhsPacket, Index> lhsMap(blockA, rows, depth, offsetA, strideA);
   PackMap<RhsScalar, RhsPacket, Index, false> rhsMap(blockB, depth, cols, offsetB, strideB);
   auto col = 0;
-  /*
-  for(; col + 2*accRhsProgress <= rhsMap.get_packed_size(); col+=2*accRhsProgress)
-  {
-    auto row = 0;
-#define ROW_LOOP(K)                                                                               \
-    for(; row + K*accLhsProgress <= lhsMap.get_packed_size(); row+=K*accLhsProgress)              \
-    {                                                                                             \
-      KernelRowLoop<ResScalar, AccScalar, LhsScalar, RhsScalar, Index, DataMapper, 4, (K-1)> kRL1; \
-      kRL1.preamble(res, lhsMap, row, col, accLhsProgress, (rows/accLhsProgress)*accLhsProgress);                                        \
-      KernelRowLoop<ResScalar, AccScalar, LhsScalar, RhsScalar, Index, DataMapper, 4, (K-1)> kRL2;\
-      kRL2.preamble(res, lhsMap, row, col + 1*accRhsProgress, accLhsProgress, (rows/accLhsProgress)*accLhsProgress);                                       \
-                                                                                                  \
-      const RhsScalar *rhs_ptr1 = rhsMap.get_packed_at((col + 0*accRhsProgress)/accRhsProgress);                        \
-      const RhsScalar *rhs_ptr2 = rhsMap.get_packed_at((col + 1*accRhsProgress)/accRhsProgress);                        \
-                                                                                                  \
-      auto k = 0;                                                                                 \
-      for(; k < depth; k++)                                                                       \
-      {                                                                                           \
-        RhsPacket prhs1 = pload<RhsPacket>(rhs_ptr1);                                               \
-        RhsPacket prhs2 = pload<RhsPacket>(rhs_ptr2);                                               \
-        PacketBlock<RhsPacket, 4> pbrhs1;                                                          \
-        pbrhs1.packet[0] = pset1<RhsPacket>(prhs1[0]);                                              \
-        pbrhs1.packet[1] = pset1<RhsPacket>(prhs1[1]);                                              \
-        pbrhs1.packet[2] = pset1<RhsPacket>(prhs1[2]);                                              \
-        pbrhs1.packet[3] = pset1<RhsPacket>(prhs1[3]);                                              \
-        PacketBlock<RhsPacket, 4> pbrhs2;                                                          \
-        pbrhs2.packet[0] = pset1<RhsPacket>(prhs2[0]);                                              \
-        pbrhs2.packet[1] = pset1<RhsPacket>(prhs2[1]);                                              \
-        pbrhs2.packet[2] = pset1<RhsPacket>(prhs2[2]);                                              \
-        pbrhs2.packet[3] = pset1<RhsPacket>(prhs2[3]);                                              \
-                                                                                                  \
-        kRL1(pbrhs1, (rows/accLhsProgress)*accLhsProgress);                                         \
-        kRL2(pbrhs2, (rows/accLhsProgress)*accLhsProgress);                                         \
-                                                                                                  \
-        rhs_ptr1 += accRhsProgress;                                                                \
-        rhs_ptr2 += accRhsProgress;                                                                \
-      }                                                                                           \
-                                                                                                  \
-      kRL1.postamble(res);                                                                         \
-      kRL2.postamble(res);                                                                         \
-    }
-
-    ROW_LOOP(6);
-    //ROW_LOOP(5);
-    //ROW_LOOP(4);
-    //ROW_LOOP(3);
-    //ROW_LOOP(2);
-    //ROW_LOOP(1);
-
-    auto row_residue = 0;
-    for(;row < rows; row++)
-    {
-      const LhsScalar *lhs_ptr = lhsMap.get_residue_at(row_residue);
-      const RhsScalar *rhs_ptr1 = rhsMap.get_packed_at((col + 0*accRhsProgress)/accRhsProgress);
-      const RhsScalar *rhs_ptr2 = rhsMap.get_packed_at((col + 1*accRhsProgress)/accRhsProgress);
-      PacketBlock<AccPacket, 1> acc1;
-      acc1.packet[0] = pset1<AccPacket>(0);
-      PacketBlock<AccPacket, 1> acc2;
-      acc2.packet[0] = pset1<AccPacket>(0);
-
-      auto k = 0;
-      for(; k < depth; k++)
-      {
-        RhsPacket prhs1 = pload<RhsPacket>(rhs_ptr1);
-        RhsPacket prhs2 = pload<RhsPacket>(rhs_ptr2);
-        LhsPacket plhs = pset1<LhsPacket>(*lhs_ptr);
-
-        acc1.packet[0] += (*lhs_ptr)*prhs1;
-        acc2.packet[0] += (*lhs_ptr)*prhs2;
-
-        lhs_ptr++;
-        rhs_ptr1 += accRhsProgress;
-        rhs_ptr2 += accRhsProgress;
-      }
-
-      res.template storePacketBlock<ResPacket, 1>(row, col + 0*accRhsProgress, acc1);
-      res.template storePacketBlock<ResPacket, 1>(row, col + 1*accRhsProgress, acc2);
-      row_residue++;
-    }
-  }
-  */
   for(; col + accRhsProgress <= rhsMap.get_packed_size(); col+=accRhsProgress)
   {
     auto row = 0;
@@ -277,8 +196,9 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
                                                                                                   \
       const RhsScalar *rhs_ptr = rhsMap.get_packed_at(col/accRhsProgress);                        \
                                                                                                   \
+      prefetch(&rhs_ptr[7]); \
       auto k = 0;                                                                                 \
-      for(; k + 8 <= depth; k+=8)                                                                       \
+      for(; k + 2 <= depth; k+=2)                                                                       \
       {                                                                                           \
         RhsPacket prhs = pload<RhsPacket>(rhs_ptr);                                               \
         rhs_ptr += accRhsProgress;                                                                \
@@ -287,64 +207,14 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
         pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);                                              \
         pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);                                              \
         pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);                                              \
-                                                                                                  \
         kRL(pbrhs, (rows/accLhsProgress)*accLhsProgress);                                         \
-        RhsPacket prhs2 = pload<RhsPacket>(rhs_ptr);                                               \
+        prhs = pload<RhsPacket>(rhs_ptr);                                               \
         rhs_ptr += accRhsProgress;                                                                \
-        PacketBlock<RhsPacket, 4> pbrhs2;                                                          \
-        pbrhs2.packet[0] = pset1<RhsPacket>(prhs2[0]);                                              \
-        pbrhs2.packet[1] = pset1<RhsPacket>(prhs2[1]);                                              \
-        pbrhs2.packet[2] = pset1<RhsPacket>(prhs2[2]);                                              \
-        pbrhs2.packet[3] = pset1<RhsPacket>(prhs2[3]);                                              \
-        kRL(pbrhs2, (rows/accLhsProgress)*accLhsProgress);                                         \
-        RhsPacket prhs3 = pload<RhsPacket>(rhs_ptr);                                               \
-        rhs_ptr += accRhsProgress;                                                                \
-        PacketBlock<RhsPacket, 4> pbrhs3;                                                          \
-        pbrhs3.packet[0] = pset1<RhsPacket>(prhs3[0]);                                              \
-        pbrhs3.packet[1] = pset1<RhsPacket>(prhs3[1]);                                              \
-        pbrhs3.packet[2] = pset1<RhsPacket>(prhs3[2]);                                              \
-        pbrhs3.packet[3] = pset1<RhsPacket>(prhs3[3]);                                              \
-        kRL(pbrhs3, (rows/accLhsProgress)*accLhsProgress);                                         \
-                RhsPacket prhs4 = pload<RhsPacket>(rhs_ptr);                                               \
-        rhs_ptr += accRhsProgress;                                                                \
-        PacketBlock<RhsPacket, 4> pbrhs4;                                                          \
-        pbrhs4.packet[0] = pset1<RhsPacket>(prhs4[0]);                                              \
-        pbrhs4.packet[1] = pset1<RhsPacket>(prhs4[1]);                                              \
-        pbrhs4.packet[2] = pset1<RhsPacket>(prhs4[2]);                                              \
-        pbrhs4.packet[3] = pset1<RhsPacket>(prhs4[3]);                                              \
-        kRL(pbrhs4, (rows/accLhsProgress)*accLhsProgress);                                         \
-                RhsPacket prhs5 = pload<RhsPacket>(rhs_ptr);                                               \
-        rhs_ptr += accRhsProgress;                                                                \
-        PacketBlock<RhsPacket, 4> pbrhs5;                                                          \
-        pbrhs5.packet[0] = pset1<RhsPacket>(prhs5[0]);                                              \
-        pbrhs5.packet[1] = pset1<RhsPacket>(prhs5[1]);                                              \
-        pbrhs5.packet[2] = pset1<RhsPacket>(prhs5[2]);                                              \
-        pbrhs5.packet[3] = pset1<RhsPacket>(prhs5[3]);                                              \
-        kRL(pbrhs5, (rows/accLhsProgress)*accLhsProgress);                                         \
-                RhsPacket prhs6 = pload<RhsPacket>(rhs_ptr);                                               \
-        rhs_ptr += accRhsProgress;                                                                \
-        PacketBlock<RhsPacket, 4> pbrhs6;                                                          \
-        pbrhs6.packet[0] = pset1<RhsPacket>(prhs6[0]);                                              \
-        pbrhs6.packet[1] = pset1<RhsPacket>(prhs6[1]);                                              \
-        pbrhs6.packet[2] = pset1<RhsPacket>(prhs6[2]);                                              \
-        pbrhs6.packet[3] = pset1<RhsPacket>(prhs6[3]);                                              \
-        kRL(pbrhs6, (rows/accLhsProgress)*accLhsProgress);                                         \
-                RhsPacket prhs7 = pload<RhsPacket>(rhs_ptr);                                               \
-        rhs_ptr += accRhsProgress;                                                                \
-        PacketBlock<RhsPacket, 4> pbrhs7;                                                          \
-        pbrhs7.packet[0] = pset1<RhsPacket>(prhs7[0]);                                              \
-        pbrhs7.packet[1] = pset1<RhsPacket>(prhs7[1]);                                              \
-        pbrhs7.packet[2] = pset1<RhsPacket>(prhs7[2]);                                              \
-        pbrhs7.packet[3] = pset1<RhsPacket>(prhs7[3]);                                              \
-        kRL(pbrhs7, (rows/accLhsProgress)*accLhsProgress);                                         \
-                RhsPacket prhs8 = pload<RhsPacket>(rhs_ptr);                                               \
-        rhs_ptr += accRhsProgress;                                                                \
-        PacketBlock<RhsPacket, 4> pbrhs8;                                                          \
-        pbrhs8.packet[0] = pset1<RhsPacket>(prhs8[0]);                                              \
-        pbrhs8.packet[1] = pset1<RhsPacket>(prhs8[1]);                                              \
-        pbrhs8.packet[2] = pset1<RhsPacket>(prhs8[2]);                                              \
-        pbrhs8.packet[3] = pset1<RhsPacket>(prhs8[3]);                                              \
-        kRL(pbrhs8, (rows/accLhsProgress)*accLhsProgress);                                         \
+        pbrhs.packet[0] = pset1<RhsPacket>(prhs[0]);                                              \
+        pbrhs.packet[1] = pset1<RhsPacket>(prhs[1]);                                              \
+        pbrhs.packet[2] = pset1<RhsPacket>(prhs[2]);                                              \
+        pbrhs.packet[3] = pset1<RhsPacket>(prhs[3]);                                              \
+        kRL(pbrhs, (rows/accLhsProgress)*accLhsProgress);                                         \
       }                                                                                           \
       for(; k < depth; k++)                                                                       \
       {                                                                                           \
@@ -363,12 +233,12 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
       kRL.postamble(res);                                                                         \
     }
 
+    ROW_LOOP(6);
     ROW_LOOP(5);
-    //ROW_LOOP(5);
     ROW_LOOP(4);
-    //ROW_LOOP(3);
-    //ROW_LOOP(2);
-    //ROW_LOOP(1);
+    ROW_LOOP(3);
+    ROW_LOOP(2);
+    ROW_LOOP(1);
 
     auto row_residue = 0;
     for(;row < rows; row++)
@@ -421,9 +291,11 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const LhsScalar* blockA, co
     }
 
     ROW_LOOP(6);
-    //ROW_LOOP(3);
-    //ROW_LOOP(2);
-    //ROW_LOOP(1);
+    ROW_LOOP(5);
+    ROW_LOOP(4);
+    ROW_LOOP(3);
+    ROW_LOOP(2);
+    ROW_LOOP(1);
 
     auto row_residue = 0;
     for(;row < rows; row++)

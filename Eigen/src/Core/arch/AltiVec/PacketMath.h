@@ -2455,7 +2455,10 @@ static inline Packet2l ConvertToPacket2l(const Packet2d& x) {
 template<> EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d& exponent) {
   
   // build 2^n
-  Packet2l emm0 = ConvertToPacket2l(exponent);
+  const Packet2d e = pmin(pmax(exponent,
+                               pset1<Packet2d>(-1023.0)),
+                               pset1<Packet2d>(1024.0));
+  Packet2l emm0 = ConvertToPacket2l(e);
 
 #ifdef __POWER8_VECTOR__ 
   const Packet2l  p2l_1023 = { 1023, 1023 };

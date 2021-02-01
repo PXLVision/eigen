@@ -758,15 +758,18 @@ template<> EIGEN_STRONG_INLINE Packet8f pldexp<Packet8f>(const Packet8f& a, cons
 template<> EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d& exponent) {
   // Build e=2^n by constructing the exponents in a 128-bit vector and
   // shifting them to where they belong in double-precision values.
-  Packet4i cst_1023 = pset1<Packet4i>(1023);
-  __m128i emm0 = _mm256_cvtpd_epi32(exponent);
+  const Packet4i cst_1023 = pset1<Packet4i>(1023);
+  const Packet4d e = pmin(pmax(exponent,
+                               pset1<Packet4d>(-1023.0)),
+                               pset1<Packet4d>(1024.0));
+  __m128i emm0 = _mm256_cvtpd_epi32(e);
   emm0 = _mm_add_epi32(emm0, cst_1023);
   emm0 = _mm_shuffle_epi32(emm0, _MM_SHUFFLE(3, 1, 2, 0));
   __m128i lo = _mm_slli_epi64(emm0, 52);
   __m128i hi = _mm_slli_epi64(_mm_srli_epi64(emm0, 32), 52);
-  __m256i e = _mm256_insertf128_si256(_mm256_setzero_si256(), lo, 0);
-  e = _mm256_insertf128_si256(e, hi, 1);
-  return pmul(a,_mm256_castsi256_pd(e));
+  __m256i b = _mm256_insertf128_si256(_mm256_setzero_si256(), lo, 0);
+  b = _mm256_insertf128_si256(b, hi, 1);
+  return pmul(a,_mm256_castsi256_pd(b));
 }
 
 template<> EIGEN_STRONG_INLINE float predux<Packet8f>(const Packet8f& a)

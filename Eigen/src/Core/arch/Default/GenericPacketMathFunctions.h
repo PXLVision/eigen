@@ -50,8 +50,12 @@ pldexp_float(Packet a, Packet exponent)
 {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   const Packet cst_127 = pset1<Packet>(127.f);
+    // Add offset and clamp.
+  const Packet e = pmin(pmax(padd(exponent, cst_127),
+                             pset1<Packet>(0.0f)),
+                             pset1<Packet>(255.0f));
   // return a * 2^exponent
-  PacketI ei = pcast<Packet,PacketI>(padd(exponent, cst_127));
+  PacketI ei = pcast<Packet,PacketI>(e);
   return pmul(a, preinterpret<Packet>(plogical_shift_left<23>(ei)));
 }
 
@@ -60,8 +64,12 @@ pldexp_double(Packet a, Packet exponent)
 {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   const Packet cst_1023 = pset1<Packet>(1023.0);
+  // Add offset and clamp.
+  const Packet e = pmin(pmax(padd(exponent, cst_1023),
+                             pset1<Packet>(0.0)),
+                             pset1<Packet>(2047.0));
   // return a * 2^exponent
-  PacketI ei = pcast<Packet,PacketI>(padd(exponent, cst_1023));
+  PacketI ei = pcast<Packet,PacketI>(e);
   return pmul(a, preinterpret<Packet>(plogical_shift_left<52>(ei)));
 }
 

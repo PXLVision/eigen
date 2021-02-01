@@ -919,8 +919,11 @@ template<> EIGEN_STRONG_INLINE Packet16f pldexp<Packet16f>(const Packet16f& a, c
 template<> EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d& exponent) {
   // Build e=2^n by constructing the exponents in a 256-bit vector and
   // shifting them to where they belong in double-precision values.
-  Packet8i cst_1023 = pset1<Packet8i>(1023);
-  __m256i emm0 = _mm512_cvtpd_epi32(exponent);
+  const Packet8i cst_1023 = pset1<Packet8i>(1023);
+  const Packet8d e = pmin(pmax(exponent,
+                               pset1<Packet8d>(-1023.0)),
+                               pset1<Packet8d>(1024.0));
+  __m256i emm0 = _mm512_cvtpd_epi32(e);
   emm0 = _mm256_add_epi32(emm0, cst_1023);
   emm0 = _mm256_shuffle_epi32(emm0, _MM_SHUFFLE(3, 1, 2, 0));
   __m256i lo = _mm256_slli_epi64(emm0, 52);

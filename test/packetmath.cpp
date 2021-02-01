@@ -573,10 +573,20 @@ void packetmath_real() {
     data2[i] = Scalar(internal::random<double>(-1, 1));
   }
   for (int i = 0; i < PacketSize; ++i) {
-    data1[i+PacketSize] = Scalar(internal::random<int>(0, 4));
-    data2[i+PacketSize] = Scalar(internal::random<double>(0, 4));
+    data1[i+PacketSize] = Scalar(internal::random<int>(-4, 4));
+    data2[i+PacketSize] = Scalar(internal::random<double>(-4, 4));
   }
   CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+  if (PacketTraits::HasExp) {
+    data1[0] = Scalar(-1);
+    data1[PacketSize] = Scalar(std::numeric_limits<Scalar>::min_exponent-10);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    data1[PacketSize] = Scalar(std::numeric_limits<Scalar>::max_exponent+10);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    data1[0] = NumTraits<Scalar>::quiet_NaN();
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    VERIFY((numext::isnan)(data2[0]));
+  }
 
   for (int i = 0; i < size; ++i) {
     data1[i] = Scalar(internal::random<double>(-1, 1) * std::pow(10., internal::random<double>(-6, 6)));

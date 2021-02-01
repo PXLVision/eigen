@@ -908,10 +908,13 @@ template<> EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, cons
 // supported by SSE, and has more range than is needed for exponents.
 template<> EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d& exponent) {
   const Packet2d cst_1023 = pset1<Packet2d>(1023.0);
-  // Add exponent offset.
-  Packet4i ei = _mm_cvtpd_epi32(padd(exponent, cst_1023));
-  // Convert to exponents to int64 and swizzle to the low-order 32 bits.
-  ei = vec4i_swizzle1(ei, 0, 3, 1, 3);
+  // Add exponent offset and clamp.
+  const Packet2d e = pmin(pmax(padd(exponent, cst_1023),
+                               pset1<Packet2d>(0.0)),
+                               pset1<Packet2d>(2047.0));
+
+  // Convert exponents to int64 and swizzle to the low-order 32 bits.
+  const Packet4i ei = vec4i_swizzle1(_mm_cvtpd_epi32(e), 0, 3, 1, 3);
   // return a * 2^exponent
   return pmul(a, _mm_castsi128_pd(_mm_slli_epi64(ei, 52)));
 }

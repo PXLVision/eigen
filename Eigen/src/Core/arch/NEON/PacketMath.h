@@ -1089,7 +1089,21 @@ template<> EIGEN_STRONG_INLINE Packet2f pmadd(const Packet2f& a, const Packet2f&
 #else
 template<> EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c)
 {
+  
+#if EIGEN_COMP_CLANG && EIGEN_ARCH_ARM
+  // Clang seems to spill registers in the GEBP kernel on 32-bit arm.
+  // See #2138.
+  Packet4f r = c;
+  asm volatile(
+    "vmla.f32 %q[r], %q[a], %q[b]"
+    : [r] "+w" (r)
+    : [a] "w" (a),
+      [b] "w" (b)
+    : );
+  return r;
+#else
   return vmlaq_f32(c,a,b);
+#endif
 }
 template<> EIGEN_STRONG_INLINE Packet2f pmadd(const Packet2f& a, const Packet2f& b, const Packet2f& c)
 {

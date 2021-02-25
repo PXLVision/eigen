@@ -55,13 +55,7 @@
 
 // If the user explicitly disable vectorization, then we also disable alignment
 #if defined(EIGEN_DONT_VECTORIZE)
-  #if defined(EIGEN_GPUCC)
-    // GPU code is always vectorized and requires memory alignment for
-    // statically allocated buffers.
-    #define EIGEN_IDEAL_MAX_ALIGN_BYTES 16
-  #else
-    #define EIGEN_IDEAL_MAX_ALIGN_BYTES 0
-  #endif
+  #define EIGEN_IDEAL_MAX_ALIGN_BYTES 0
 #elif defined(__AVX512F__)
   // 64 bytes static alignment is preferred only if really required
   #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
@@ -213,8 +207,9 @@
   #endif
 #endif
 
-#if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC))
-
+// Only allow vectorization if not compiling for GPU - otherwise the packet
+// types currently conflict.
+#if !defined(EIGEN_DONT_VECTORIZE) && !defined(EIGEN_GPUCC)
   #if defined (EIGEN_SSE2_ON_NON_MSVC_BUT_NOT_OLD_GCC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
 
     // Defines symbols for compile-time detection of which instructions are
@@ -451,7 +446,9 @@
 #endif
 
 #if defined EIGEN_CUDACC
-  #define EIGEN_VECTORIZE_GPU
+  #if !EIGEN_DONT_VECTORIZE
+    #define EIGEN_VECTORIZE_GPU
+  #endif
   #include <vector_types.h>
   #if EIGEN_CUDA_SDK_VER >= 70500
     #define EIGEN_HAS_CUDA_FP16
@@ -464,8 +461,10 @@
 #endif
 
 #if defined(EIGEN_HIPCC)
-  #define EIGEN_VECTORIZE_GPU
-  #include <hip/hip_vector_types.h>
+  #if !EIGEN_DONT_VECTORIZE
+    #define EIGEN_VECTORIZE_GPU
+    #include <hip/hip_vector_types.h>
+  #endif
   #define EIGEN_HAS_HIP_FP16
   #include <hip/hip_fp16.h>
 #endif

@@ -12,7 +12,8 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_GPU_H
 #define EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_GPU_H
 
-#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
+// Tensor contractions currently rely on vectorization.
+#if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC) && defined(EIGEN_VECTORIZE_GPU)
 
 namespace Eigen {
 
@@ -527,6 +528,8 @@ EigenContractionKernel(const LhsMapper lhs, const RhsMapper rhs,
   }
 }
 
+// Specialized contraction for floats currently relies on vectorization.
+#ifdef EIGEN_VECTORIZE_GPU
 
 template<typename Index, typename LhsMapper,
          typename RhsMapper, typename OutputMapper, bool CHECK_LHS_BOUNDARY,
@@ -1131,7 +1134,6 @@ EigenFloatContractionKernelInternal(const LhsMapper lhs, const RhsMapper rhs,
   }
 }
 
-
 template<typename Index, typename LhsMapper,
          typename RhsMapper, typename OutputMapper>
 __global__ void
@@ -1214,6 +1216,7 @@ EigenFloatContractionKernel16x16(const LhsMapper lhs, const RhsMapper rhs,
   }
 }
 
+#endif  // EIGEN_VECTORIZE_GPU
 
 template<typename Indices, typename LeftArgType, typename RightArgType, typename OutputKernelType>
 struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType>, GpuDevice> :
@@ -1340,6 +1343,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     }
   };
 
+#ifdef EIGEN_VECTORIZE_GPU
   template <typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper> struct LaunchKernels<float, float, Index, LhsMapper, RhsMapper, OutputMapper> {
     static void Run(const LhsMapper& lhs, const RhsMapper& rhs, const OutputMapper& output, Index m, Index n, Index k, const GpuDevice& device) {
       if (m < 768 || n < 768) {
@@ -1357,6 +1361,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       }
     }
   };
+  #endif  // EIGEN_VECTORIZE_GPU
 
   template <bool lhs_inner_dim_contiguous, bool rhs_inner_dim_contiguous, bool rhs_inner_dim_reordered, int Alignment>
   void evalTyped(Scalar* buffer) const {

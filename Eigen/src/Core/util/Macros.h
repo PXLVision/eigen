@@ -16,8 +16,8 @@
 //------------------------------------------------------------------------------------------
 
 #define EIGEN_WORLD_VERSION 3
-#define EIGEN_MAJOR_VERSION 3
-#define EIGEN_MINOR_VERSION 90
+#define EIGEN_MAJOR_VERSION 4
+#define EIGEN_MINOR_VERSION 99
 
 #define EIGEN_VERSION_AT_LEAST(x,y,z) (EIGEN_WORLD_VERSION>x || (EIGEN_WORLD_VERSION>=x && \
                                       (EIGEN_MAJOR_VERSION>y || (EIGEN_MAJOR_VERSION>=y && \
@@ -264,6 +264,14 @@
 #else
   #define EIGEN_ARCH_ARM_OR_ARM64 0
 #endif
+
+/// \internal EIGEN_ARCH_ARMV8 set to 1 if the architecture is armv8 or greater.
+#if EIGEN_ARCH_ARM_OR_ARM64 && defined(__ARM_ARCH) && __ARM_ARCH >= 8
+#define EIGEN_ARCH_ARMV8 1
+#else
+#define EIGEN_ARCH_ARMV8 0
+#endif
+
 
 /// \internal EIGEN_HAS_ARM64_FP16 set to 1 if the architecture provides an IEEE
 /// compliant Arm fp16 type
@@ -657,14 +665,33 @@
 #endif
 
 // Does the compiler support result_of?
-// It's likely that MSVC 2013 supports result_of but I couldn't not find a good source for that,
-// so let's be conservative.
+// result_of was deprecated in c++17 and removed in c++ 20
 #ifndef EIGEN_HAS_STD_RESULT_OF
-#if EIGEN_MAX_CPP_VER>=11 && \
-    (__has_feature(cxx_lambdas) || (defined(__cplusplus) && __cplusplus >= 201103L) || EIGEN_COMP_MSVC >= 1900)
+#if EIGEN_MAX_CPP_VER >= 11 && \
+    (defined(__cplusplus) && __cplusplus >= 201103L && __cplusplus < 201703L)
 #define EIGEN_HAS_STD_RESULT_OF 1
 #else
 #define EIGEN_HAS_STD_RESULT_OF 0
+#endif
+#endif
+
+// Does the compiler support std::hash?
+#ifndef EIGEN_HAS_STD_HASH
+// The std::hash struct is defined in C++11 but is not labelled as a __device__
+// function and is not constexpr, so cannot be used on device.
+#if EIGEN_HAS_CXX11 && !defined(EIGEN_GPU_COMPILE_PHASE)
+#define EIGEN_HAS_STD_HASH 1
+#else
+#define EIGEN_HAS_STD_HASH 0
+#endif
+#endif  // EIGEN_HAS_STD_HASH
+
+#ifndef EIGEN_HAS_STD_INVOKE_RESULT
+#if EIGEN_MAX_CPP_VER >= 17 && \
+    (defined(__cplusplus) && __cplusplus >= 201703L)
+#define EIGEN_HAS_STD_INVOKE_RESULT 1
+#else
+#define EIGEN_HAS_STD_INVOKE_RESULT 0
 #endif
 #endif
 

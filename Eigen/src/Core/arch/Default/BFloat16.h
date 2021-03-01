@@ -67,7 +67,7 @@ struct bfloat16 : public bfloat16_impl::bfloat16_base {
       : bfloat16_impl::bfloat16_base(bfloat16_impl::raw_uint16_to_bfloat16(b ? 0x3f80 : 0)) {}
 
   template<class T>
-  explicit EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bfloat16(const T& val)
+  explicit EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bfloat16(T val)
       : bfloat16_impl::bfloat16_base(bfloat16_impl::float_to_bfloat16_rtne<internal::is_integral<T>::value>(static_cast<float>(val))) {}
 
   explicit EIGEN_DEVICE_FUNC bfloat16(float f)
@@ -513,7 +513,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log10(const bfloat16& a) {
   return bfloat16(::log10f(float(a)));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log2(const bfloat16& a) {
-  return bfloat16(static_cast<float>(M_LOG2E) * ::logf(float(a)));
+  return bfloat16(static_cast<float>(EIGEN_LOG2E) * ::logf(float(a)));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 sqrt(const bfloat16& a) {
     return bfloat16(::sqrtf(float(a)));
@@ -655,20 +655,6 @@ template<> struct NumTraits<Eigen::bfloat16>
 
 } // namespace Eigen
 
-namespace std {
-
-#if __cplusplus > 199711L
-template <>
-struct hash<Eigen::bfloat16> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::size_t operator()(const Eigen::bfloat16& a) const {
-    return hash<float>()(static_cast<float>(a));
-  }
-};
-#endif
-
-} // namespace std
-
-
 namespace Eigen {
 namespace numext {
 
@@ -702,5 +688,17 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint16_t bit_cast<uint16_t, Eigen::bfloat1
 
 }  // namespace numext
 }  // namespace Eigen
+
+#if EIGEN_HAS_STD_HASH
+namespace std {
+template <>
+struct hash<Eigen::bfloat16> {
+  EIGEN_STRONG_INLINE std::size_t operator()(const Eigen::bfloat16& a) const {
+    return static_cast<std::size_t>(Eigen::numext::bit_cast<Eigen::numext::uint16_t>(a));
+  }
+};
+} // namespace std
+#endif
+
 
 #endif // EIGEN_BFLOAT16_H

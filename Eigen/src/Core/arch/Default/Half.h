@@ -36,12 +36,6 @@
 #ifndef EIGEN_HALF_H
 #define EIGEN_HALF_H
 
-#if EIGEN_HAS_CXX11
-#define EIGEN_EXPLICIT_CAST(tgt_type) explicit operator tgt_type()
-#else
-#define EIGEN_EXPLICIT_CAST(tgt_type) operator tgt_type()
-#endif
-
 #include <sstream>
 
 #if defined(EIGEN_HAS_GPU_FP16) || defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
@@ -153,7 +147,7 @@ struct half : public half_impl::half_base {
   explicit EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR half(bool b)
       : half_impl::half_base(half_impl::raw_uint16_to_half(b ? 0x3c00 : 0)) {}
   template<class T>
-  explicit EIGEN_DEVICE_FUNC half(const T& val)
+  explicit EIGEN_DEVICE_FUNC half(T val)
       : half_impl::half_base(half_impl::float_to_half_rtne(static_cast<float>(val))) {}
   explicit EIGEN_DEVICE_FUNC half(float f)
       : half_impl::half_base(half_impl::float_to_half_rtne(f)) {}
@@ -623,7 +617,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log10(const half& a) {
   return half(::log10f(float(a)));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log2(const half& a) {
-  return half(static_cast<float>(M_LOG2E) * ::logf(float(a)));
+  return half(static_cast<float>(EIGEN_LOG2E) * ::logf(float(a)));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half sqrt(const half& a) {
@@ -763,19 +757,6 @@ template<> struct NumTraits<Eigen::half>
   #pragma pop_macro("EIGEN_CONSTEXPR")
 #endif
 
-namespace std {
-
-#if __cplusplus > 199711L
-template <>
-struct hash<Eigen::half> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::size_t operator()(const Eigen::half& a) const {
-    return static_cast<std::size_t>(a.x);
-  }
-};
-#endif
-
-} // end namespace std
-
 namespace Eigen {
 namespace numext {
 
@@ -875,5 +856,16 @@ EIGEN_STRONG_INLINE __device__ Eigen::half __ldg(const Eigen::half* ptr) {
   return Eigen::half_impl::raw_uint16_to_half(__ldg(reinterpret_cast<const Eigen::numext::uint16_t*>(ptr)));
 }
 #endif // __ldg
+
+#if EIGEN_HAS_STD_HASH
+namespace std {
+template <>
+struct hash<Eigen::half> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::size_t operator()(const Eigen::half& a) const {
+    return static_cast<std::size_t>(Eigen::numext::bit_cast<Eigen::numext::uint16_t>(a));
+  }
+};
+} // end namespace std
+#endif
 
 #endif // EIGEN_HALF_H

@@ -46,6 +46,21 @@ inline bool REF_MUL(const bool& a, const bool& b) {
   return a && b;
 }
 
+template <typename T>
+inline T REF_FREXP(const T& x, T& exp) {
+  int iexp;
+  EIGEN_USING_STD(frexp)
+  const T out = static_cast<T>(frexp(x, &iexp));
+  exp = static_cast<T>(iexp);
+  return out;
+}
+
+template <typename T>
+inline T REF_LDEXP(const T& x, const T& exp) {
+  EIGEN_USING_STD(ldexp)
+  return static_cast<T>(ldexp(x, static_cast<int>(exp)));
+}
+
 // Uses pcast to cast from one array to another.
 template <typename SrcPacket, typename TgtPacket, int SrcCoeffRatio, int TgtCoeffRatio>
 struct pcast_array;
@@ -473,8 +488,6 @@ void packetmath() {
     CHECK_CWISE3_IF(true, internal::pselect, internal::pselect);
   }
 
-  CHECK_CWISE1_IF(PacketTraits::HasSqrt, numext::sqrt, internal::psqrt);
-
   for (int i = 0; i < size; ++i) {
     data1[i] = internal::random<Scalar>();
   }
@@ -486,13 +499,19 @@ void packetmath() {
   packetmath_boolean_mask_ops<Scalar, Packet>();
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
   packetmath_minus_zero_add<Scalar, Packet>();
+
+  for (int i = 0; i < size; ++i) {
+    data1[i] = numext::abs(internal::random<Scalar>());
+  }
+  CHECK_CWISE1_IF(PacketTraits::HasSqrt, numext::sqrt, internal::psqrt);
+  CHECK_CWISE1_IF(PacketTraits::HasRsqrt, numext::rsqrt, internal::prsqrt);
 }
 
 // Notice that this definition works for complex types as well.
 // c++11 has std::log2 for real, but not for complex types.
 template <typename Scalar>
 Scalar log2(Scalar x) {
-  return Scalar(M_LOG2E) * std::log(x);
+  return Scalar(EIGEN_LOG2E) * std::log(x);
 }
 
 template <typename Scalar, typename Packet>
@@ -514,7 +533,7 @@ void packetmath_real() {
 
   CHECK_CWISE1_IF(PacketTraits::HasLog, std::log, internal::plog);
   CHECK_CWISE1_IF(PacketTraits::HasLog, log2, internal::plog2);
-  CHECK_CWISE1_IF(PacketTraits::HasRsqrt, 1 / std::sqrt, internal::prsqrt);
+  CHECK_CWISE1_IF(PacketTraits::HasRsqrt, numext::rsqrt, internal::prsqrt);
 
   for (int i = 0; i < size; ++i) {
     data1[i] = Scalar(internal::random<double>(-1, 1) * std::pow(10., internal::random<double>(-3, 3)));
@@ -528,14 +547,48 @@ void packetmath_real() {
   CHECK_CWISE1_IF(PacketTraits::HasCeil, numext::ceil, internal::pceil);
   CHECK_CWISE1_IF(PacketTraits::HasFloor, numext::floor, internal::pfloor);
   CHECK_CWISE1_IF(PacketTraits::HasRint, numext::rint, internal::print);
-
-  // See bug 1785.
-  for (int i = 0; i < size; ++i) {
-    data1[i] = Scalar(-1.5 + i);
-    data2[i] = Scalar(-1.5 + i);
+  
+  // Rounding edge cases.
+  if (PacketTraits::HasRound || PacketTraits::HasCeil || PacketTraits::HasFloor || PacketTraits::HasRint) {
+    typedef typename internal::make_integer<Scalar>::type IntType;
+    // Start with values that cannot fit inside an integer, work down to less than one.
+    Scalar val = numext::mini(
+        Scalar(2) * static_cast<Scalar>(NumTraits<IntType>::highest()),
+        NumTraits<Scalar>::highest());
+    std::vector<Scalar> values;
+    while (val > Scalar(0.25)) {
+      // Cover both even and odd, positive and negative cases.
+      values.push_back(val);
+      values.push_back(val + Scalar(0.3));
+      values.push_back(val + Scalar(0.5));
+      values.push_back(val + Scalar(0.8));
+      values.push_back(val + Scalar(1));
+      values.push_back(val + Scalar(1.3));
+      values.push_back(val + Scalar(1.5));
+      values.push_back(val + Scalar(1.8));
+      values.push_back(-val);
+      values.push_back(-val - Scalar(0.3));
+      values.push_back(-val - Scalar(0.5));
+      values.push_back(-val - Scalar(0.8));
+      values.push_back(-val - Scalar(1));
+      values.push_back(-val - Scalar(1.3));
+      values.push_back(-val - Scalar(1.5));
+      values.push_back(-val - Scalar(1.8));
+      values.push_back(Scalar(-1.5) + val);  // Bug 1785.
+      val = val / Scalar(2);
+    }
+    values.push_back(NumTraits<Scalar>::infinity());
+    values.push_back(-NumTraits<Scalar>::infinity());
+    values.push_back(NumTraits<Scalar>::quiet_NaN());
+    
+    for (size_t k=0; k<values.size(); ++k) {
+      data1[0] = values[k];
+      CHECK_CWISE1_IF(PacketTraits::HasRound, numext::round, internal::pround);
+      CHECK_CWISE1_IF(PacketTraits::HasCeil, numext::ceil, internal::pceil);
+      CHECK_CWISE1_IF(PacketTraits::HasFloor, numext::floor, internal::pfloor);
+      CHECK_CWISE1_IF(PacketTraits::HasRint, numext::rint, internal::print);
+    }
   }
-  CHECK_CWISE1_IF(PacketTraits::HasRound, numext::round, internal::pround);
-  CHECK_CWISE1_IF(PacketTraits::HasRint, numext::rint, internal::print);
 
   for (int i = 0; i < size; ++i) {
     data1[i] = Scalar(internal::random<double>(-1, 1));
@@ -549,6 +602,77 @@ void packetmath_real() {
     data2[i] = Scalar(internal::random<double>(-87, 88));
   }
   CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp, internal::pexp);
+  
+  CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
+  if (PacketTraits::HasExp) {
+    // Check denormals:
+    for (int j=0; j<3; ++j) {
+      data1[0] = Scalar(std::ldexp(1, std::numeric_limits<Scalar>::min_exponent-j));
+      CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
+      data1[0] = -data1[0];
+      CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
+    }
+    
+    // zero
+    data1[0] = Scalar(0);
+    CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
+    
+    // inf and NaN only compare output fraction, not exponent.
+    test::packet_helper<PacketTraits::HasExp,Packet> h;
+    Packet pout;
+    Scalar sout;
+    Scalar special[] = { NumTraits<Scalar>::infinity(), 
+                        -NumTraits<Scalar>::infinity(),
+                         NumTraits<Scalar>::quiet_NaN()};
+    for (int i=0; i<3; ++i) {
+      data1[0] = special[i];
+      ref[0] = Scalar(REF_FREXP(data1[0], ref[PacketSize]));
+      h.store(data2, internal::pfrexp(h.load(data1), h.forward_reference(pout, sout)));
+      VERIFY(test::areApprox(ref, data2, 1) && "internal::pfrexp");
+    }
+  }
+  
+  for (int i = 0; i < PacketSize; ++i) {
+    data1[i] = Scalar(internal::random<double>(-1, 1));
+    data2[i] = Scalar(internal::random<double>(-1, 1));
+  }
+  for (int i = 0; i < PacketSize; ++i) {
+    data1[i+PacketSize] = Scalar(internal::random<int>(-4, 4));
+    data2[i+PacketSize] = Scalar(internal::random<double>(-4, 4));
+  }
+  CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+  if (PacketTraits::HasExp) {
+    data1[0] = Scalar(-1);
+    // underflow to zero
+    data1[PacketSize] = Scalar(std::numeric_limits<Scalar>::min_exponent-10);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // overflow to inf
+    data1[PacketSize] = Scalar(std::numeric_limits<Scalar>::max_exponent+10);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // NaN stays NaN
+    data1[0] = NumTraits<Scalar>::quiet_NaN();
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    VERIFY((numext::isnan)(data2[0]));
+    // inf stays inf
+    data1[0] = NumTraits<Scalar>::infinity();
+    data1[PacketSize] = Scalar(std::numeric_limits<Scalar>::min_exponent-10);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // zero stays zero
+    data1[0] = Scalar(0);
+    data1[PacketSize] = Scalar(std::numeric_limits<Scalar>::max_exponent+10);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // Small number big exponent.
+    data1[0] = Scalar(std::ldexp(Scalar(1.0), std::numeric_limits<Scalar>::min_exponent-1));
+    data1[PacketSize] = Scalar(-std::numeric_limits<Scalar>::min_exponent
+                               +std::numeric_limits<Scalar>::max_exponent);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // Big number small exponent.
+    data1[0] = Scalar(std::ldexp(Scalar(1.0), std::numeric_limits<Scalar>::max_exponent-1));
+    data1[PacketSize] = Scalar(+std::numeric_limits<Scalar>::min_exponent
+                               -std::numeric_limits<Scalar>::max_exponent);
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+  }
+
   for (int i = 0; i < size; ++i) {
     data1[i] = Scalar(internal::random<double>(-1, 1) * std::pow(10., internal::random<double>(-6, 6)));
     data2[i] = Scalar(internal::random<double>(-1, 1) * std::pow(10., internal::random<double>(-6, 6)));
@@ -899,6 +1023,8 @@ void test_conj_helper(Scalar* data1, Scalar* data2, Scalar* ref, Scalar* pval) {
 
 template <typename Scalar, typename Packet>
 void packetmath_complex() {
+  typedef internal::packet_traits<Scalar> PacketTraits;
+  typedef typename Scalar::value_type RealScalar;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   const int size = PacketSize * 4;
@@ -917,10 +1043,54 @@ void packetmath_complex() {
   test_conj_helper<Scalar, Packet, true, false>(data1, data2, ref, pval);
   test_conj_helper<Scalar, Packet, true, true>(data1, data2, ref, pval);
 
+  // Test pcplxflip.
   {
     for (int i = 0; i < PacketSize; ++i) ref[i] = Scalar(std::imag(data1[i]), std::real(data1[i]));
     internal::pstore(pval, internal::pcplxflip(internal::pload<Packet>(data1)));
     VERIFY(test::areApprox(ref, pval, PacketSize) && "pcplxflip");
+  }
+
+  if (PacketTraits::HasSqrt) {
+    for (int i = 0; i < size; ++i) {
+      data1[i] = Scalar(internal::random<RealScalar>(), internal::random<RealScalar>());
+    }
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, size);
+
+    // Test misc. corner cases.
+    const RealScalar zero = RealScalar(0);
+    const RealScalar one = RealScalar(1);
+    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+    const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+    data1[0] = Scalar(zero, zero);
+    data1[1] = Scalar(-zero, zero);
+    data1[2] = Scalar(one, zero);
+    data1[3] = Scalar(zero, one);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    data1[0] = Scalar(-one, zero);
+    data1[1] = Scalar(zero, -one);
+    data1[2] = Scalar(one, one);
+    data1[3] = Scalar(-one, -one);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    data1[0] = Scalar(inf, zero);
+    data1[1] = Scalar(zero, inf);
+    data1[2] = Scalar(-inf, zero);
+    data1[3] = Scalar(zero, -inf);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    data1[0] = Scalar(inf, inf);
+    data1[1] = Scalar(-inf, inf);
+    data1[2] = Scalar(inf, -inf);
+    data1[3] = Scalar(-inf, -inf);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    data1[0] = Scalar(nan, zero);
+    data1[1] = Scalar(zero, nan);
+    data1[2] = Scalar(nan, one);
+    data1[3] = Scalar(one, nan);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    data1[0] = Scalar(nan, nan);
+    data1[1] = Scalar(inf, nan);
+    data1[2] = Scalar(nan, inf);
+    data1[3] = Scalar(-inf, nan);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
   }
 }
 

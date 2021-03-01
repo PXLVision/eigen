@@ -403,7 +403,7 @@ struct functor_traits<scalar_log10_op<Scalar> >
   */
 template<typename Scalar> struct scalar_log2_op {
   EIGEN_EMPTY_STRUCT_CTOR(scalar_log2_op)
-  EIGEN_DEVICE_FUNC inline const Scalar operator() (const Scalar& a) const { return Scalar(M_LOG2E) * std::log(a); }
+  EIGEN_DEVICE_FUNC inline const Scalar operator() (const Scalar& a) const { return Scalar(EIGEN_LOG2E) * numext::log(a); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { return internal::plog2(a); }
 };
@@ -456,7 +456,7 @@ struct functor_traits<scalar_sqrt_op<bool> > {
   */
 template<typename Scalar> struct scalar_rsqrt_op {
   EIGEN_EMPTY_STRUCT_CTOR(scalar_rsqrt_op)
-  EIGEN_DEVICE_FUNC inline const Scalar operator() (const Scalar& a) const { return Scalar(1)/numext::sqrt(a); }
+  EIGEN_DEVICE_FUNC inline const Scalar operator() (const Scalar& a) const { return numext::rsqrt(a); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { return internal::prsqrt(a); }
 };

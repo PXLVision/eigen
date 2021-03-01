@@ -84,12 +84,18 @@ typedef uint64x2_t                           Packet2ul;
 
 #endif // EIGEN_COMP_MSVC
 
+EIGEN_STRONG_INLINE Packet4f shuffle1(const Packet4f& m, int mask){
+  const float* a = reinterpret_cast<const float*>(&m);
+  Packet4f res = {*(a + (mask & 3)), *(a + ((mask >> 2) & 3)), *(a + ((mask >> 4) & 3 )), *(a + ((mask >> 6) & 3))};
+  return res;
+}
+
 // fuctionally equivalent to _mm_shuffle_ps in SSE when interleave
 // == false (i.e. shuffle<false>(m, n, mask) equals _mm_shuffle_ps(m, n, mask)),
 // interleave m and n when interleave == true. Currently used in LU/arch/InverseSize4.h
-// to enable a shared implementation for fast inversion of matrices of size 4.
-template<bool interleave>
-EIGEN_STRONG_INLINE Packet4f shuffle(const Packet4f &m, const Packet4f &n, int mask)
+// to enable a shared implementation for fast inversion of matrices of size 4. 
+template<bool interleave> 
+EIGEN_STRONG_INLINE Packet4f shuffle2(const Packet4f &m, const Packet4f &n, int mask)
 {
   const float* a = reinterpret_cast<const float*>(&m);
   const float* b = reinterpret_cast<const float*>(&n);
@@ -97,8 +103,8 @@ EIGEN_STRONG_INLINE Packet4f shuffle(const Packet4f &m, const Packet4f &n, int m
   return res;
 }
 
-template<>
-EIGEN_STRONG_INLINE Packet4f shuffle<true>(const Packet4f &m, const Packet4f &n, int mask)
+template<> 
+EIGEN_STRONG_INLINE Packet4f shuffle2<true>(const Packet4f &m, const Packet4f &n, int mask) 
 {
   const float* a = reinterpret_cast<const float*>(&m);
   const float* b = reinterpret_cast<const float*>(&n);
@@ -108,25 +114,29 @@ EIGEN_STRONG_INLINE Packet4f shuffle<true>(const Packet4f &m, const Packet4f &n,
 
 EIGEN_STRONG_INLINE static int eigen_neon_shuffle_mask(int p, int q, int r, int s) {return ((s)<<6|(r)<<4|(q)<<2|(p));}
 
+EIGEN_STRONG_INLINE Packet4f vec4f_swizzle1(const Packet4f& a, int p, int q, int r, int s)
+{ 
+  return shuffle1(a, eigen_neon_shuffle_mask(p, q, r, s));
+}
 EIGEN_STRONG_INLINE Packet4f vec4f_swizzle2(const Packet4f& a, const Packet4f& b, int p, int q, int r, int s)
-{
-  return shuffle<false>(a,b,eigen_neon_shuffle_mask(p, q, r, s));
+{ 
+  return shuffle2<false>(a,b,eigen_neon_shuffle_mask(p, q, r, s));
 }
 EIGEN_STRONG_INLINE Packet4f vec4f_movelh(const Packet4f& a, const Packet4f& b)
 {
-  return shuffle<false>(a,b,eigen_neon_shuffle_mask(0, 1, 0, 1));
+  return shuffle2<false>(a,b,eigen_neon_shuffle_mask(0, 1, 0, 1));
 }
 EIGEN_STRONG_INLINE Packet4f vec4f_movehl(const Packet4f& a, const Packet4f& b)
 {
-  return shuffle<false>(b,a,eigen_neon_shuffle_mask(2, 3, 2, 3));
+  return shuffle2<false>(b,a,eigen_neon_shuffle_mask(2, 3, 2, 3));
 }
 EIGEN_STRONG_INLINE Packet4f vec4f_unpacklo(const Packet4f& a, const Packet4f& b)
 {
-  return shuffle<true>(a,b,eigen_neon_shuffle_mask(0, 0, 1, 1));
+  return shuffle2<true>(a,b,eigen_neon_shuffle_mask(0, 0, 1, 1));
 }
 EIGEN_STRONG_INLINE Packet4f vec4f_unpackhi(const Packet4f& a, const Packet4f& b)
 {
-  return shuffle<true>(a,b,eigen_neon_shuffle_mask(2, 2, 3, 3));
+  return shuffle2<true>(a,b,eigen_neon_shuffle_mask(2, 2, 3, 3));
 }
 #define vec4f_duplane(a, p) \
   vdupq_lane_f32(vget_low_f32(a), p)
@@ -184,13 +194,16 @@ struct packet_traits<float> : default_packet_traits
     HasBlend     = 0,
 
     HasDiv   = 1,
-    HasFloor = 0,
+    HasFloor = 1,
+    HasCeil = 1,
+    HasRint = 1,
 
     HasSin  = EIGEN_FAST_MATH,
     HasCos  = EIGEN_FAST_MATH,
     HasLog  = 1,
     HasExp  = 1,
     HasSqrt = 1,
+    HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf  = EIGEN_FAST_MATH,
     HasBessel = 0,  // Issues with accuracy.
@@ -851,6 +864,17 @@ template<> EIGEN_STRONG_INLINE Packet4ui psub<Packet4ui>(const Packet4ui& a, con
 template<> EIGEN_STRONG_INLINE Packet2l psub<Packet2l>(const Packet2l& a, const Packet2l& b) { return vsubq_s64(a,b); }
 template<> EIGEN_STRONG_INLINE Packet2ul psub<Packet2ul>(const Packet2ul& a, const Packet2ul& b) { return vsubq_u64(a,b); }
 
+template<> EIGEN_STRONG_INLINE Packet2f pxor<Packet2f>(const Packet2f& a, const Packet2f& b);
+template<> EIGEN_STRONG_INLINE Packet2f paddsub<Packet2f>(const Packet2f& a, const Packet2f & b) {
+  Packet2f mask = {-0.0f, 0.0f};
+  return padd(a, pxor(mask, b));
+}
+template<> EIGEN_STRONG_INLINE Packet4f pxor<Packet4f>(const Packet4f& a, const Packet4f& b);
+template<> EIGEN_STRONG_INLINE Packet4f paddsub<Packet4f>(const Packet4f& a, const Packet4f& b) {
+  Packet4f mask = {-0.0f, 0.0f, -0.0f, 0.0f};
+  return padd(a, pxor(mask, b));
+}
+
 template<> EIGEN_STRONG_INLINE Packet2f pnegate(const Packet2f& a) { return vneg_f32(a); }
 template<> EIGEN_STRONG_INLINE Packet4f pnegate(const Packet4f& a) { return vnegq_f32(a); }
 template<> EIGEN_STRONG_INLINE Packet4c pnegate(const Packet4c& a)
@@ -1159,6 +1183,17 @@ template<> EIGEN_STRONG_INLINE Packet4ui pabsdiff<Packet4ui>(const Packet4ui& a,
 
 template<> EIGEN_STRONG_INLINE Packet2f pmin<Packet2f>(const Packet2f& a, const Packet2f& b) { return vmin_f32(a,b); }
 template<> EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) { return vminq_f32(a,b); }
+
+#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
+// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8 systems).
+template<> EIGEN_STRONG_INLINE Packet4f pmin<PropagateNumbers, Packet4f>(const Packet4f& a, const Packet4f& b) { return vminnmq_f32(a, b); }
+template<> EIGEN_STRONG_INLINE Packet2f pmin<PropagateNumbers, Packet2f>(const Packet2f& a, const Packet2f& b) { return vminnm_f32(a, b); }
+#endif
+
+template<> EIGEN_STRONG_INLINE Packet4f pmin<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) { return pmin<Packet4f>(a, b); }
+
+template<> EIGEN_STRONG_INLINE Packet2f pmin<PropagateNaN, Packet2f>(const Packet2f& a, const Packet2f& b) { return pmin<Packet2f>(a, b); }
+
 template<> EIGEN_STRONG_INLINE Packet4c pmin<Packet4c>(const Packet4c& a, const Packet4c& b)
 {
   return vget_lane_s32(vreinterpret_s32_s8(vmin_s8(
@@ -1196,6 +1231,17 @@ template<> EIGEN_STRONG_INLINE Packet2ul pmin<Packet2ul>(const Packet2ul& a, con
 
 template<> EIGEN_STRONG_INLINE Packet2f pmax<Packet2f>(const Packet2f& a, const Packet2f& b) { return vmax_f32(a,b); }
 template<> EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b) { return vmaxq_f32(a,b); }
+
+#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
+// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8 systems).
+template<> EIGEN_STRONG_INLINE Packet4f pmax<PropagateNumbers, Packet4f>(const Packet4f& a, const Packet4f& b) { return vmaxnmq_f32(a, b); }
+template<> EIGEN_STRONG_INLINE Packet2f pmax<PropagateNumbers, Packet2f>(const Packet2f& a, const Packet2f& b) { return vmaxnm_f32(a, b); }
+#endif
+
+template<> EIGEN_STRONG_INLINE Packet4f pmax<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) { return pmax<Packet4f>(a, b); }
+
+template<> EIGEN_STRONG_INLINE Packet2f pmax<PropagateNaN, Packet2f>(const Packet2f& a, const Packet2f& b) { return pmax<Packet2f>(a, b); }
+
 template<> EIGEN_STRONG_INLINE Packet4c pmax<Packet4c>(const Packet4c& a, const Packet4c& b)
 {
   return vget_lane_s32(vreinterpret_s32_s8(vmax_s8(
@@ -1418,32 +1464,6 @@ template<> EIGEN_STRONG_INLINE Packet2f pcmp_lt_or_nan<Packet2f>(const Packet2f&
 { return vreinterpret_f32_u32(vmvn_u32(vcge_f32(a,b))); }
 template<> EIGEN_STRONG_INLINE Packet4f pcmp_lt_or_nan<Packet4f>(const Packet4f& a, const Packet4f& b)
 { return vreinterpretq_f32_u32(vmvnq_u32(vcgeq_f32(a,b))); }
-
-// WARNING: this pfloor implementation makes sense for inputs that fit in
-// signed int32 integers (up to ~2.14e9), hence this is currently only used
-// by pexp and not exposed through HasFloor.
-template<> EIGEN_STRONG_INLINE Packet2f pfloor<Packet2f>(const Packet2f& a)
-{
-  const Packet2f cst_1 = pset1<Packet2f>(1.0f);
-  /* perform a floorf */
-  Packet2f tmp = vcvt_f32_s32(vcvt_s32_f32(a));
-
-  /* if greater, substract 1 */
-  Packet2ui mask = vcgt_f32(tmp, a);
-  mask = vand_u32(mask, vreinterpret_u32_f32(cst_1));
-  return vsub_f32(tmp, vreinterpret_f32_u32(mask));
-}
-template<> EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a)
-{
-  const Packet4f cst_1 = pset1<Packet4f>(1.0f);
-  /* perform a floorf */
-  Packet4f tmp = vcvtq_f32_s32(vcvtq_s32_f32(a));
-
-  /* if greater, substract 1 */
-  Packet4ui mask = vcgtq_f32(tmp, a);
-  mask = vandq_u32(mask, vreinterpretq_u32_f32(cst_1));
-  return vsubq_f32(tmp, vreinterpretq_f32_u32(mask));
-}
 
 // Logical Operations are not supported for float, so we have to reinterpret casts using NEON intrinsics
 template<> EIGEN_STRONG_INLINE Packet2f pand<Packet2f>(const Packet2f& a, const Packet2f& b)
@@ -2359,14 +2379,14 @@ template<> EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
 template<> EIGEN_STRONG_INLINE Packet2ul pabs(const Packet2ul& a) { return a; }
 
 template<> EIGEN_STRONG_INLINE Packet2f pfrexp<Packet2f>(const Packet2f& a, Packet2f& exponent)
-{ return pfrexp_float(a,exponent); }
+{ return pfrexp_generic(a,exponent); }
 template<> EIGEN_STRONG_INLINE Packet4f pfrexp<Packet4f>(const Packet4f& a, Packet4f& exponent)
-{ return pfrexp_float(a,exponent); }
+{ return pfrexp_generic(a,exponent); }
 
 template<> EIGEN_STRONG_INLINE Packet2f pldexp<Packet2f>(const Packet2f& a, const Packet2f& exponent)
-{ return pldexp_float(a,exponent); }
+{ return pldexp_generic(a,exponent); }
 template<> EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f& exponent)
-{ return pldexp_float(a,exponent); }
+{ return pldexp_generic(a,exponent); }
 
 template<> EIGEN_STRONG_INLINE float predux<Packet2f>(const Packet2f& a) { return vget_lane_f32(vpadd_f32(a,a), 0); }
 template<> EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a)
@@ -2976,6 +2996,20 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8s, 4>& 
   kernel.packet[3] = vreinterpretq_s16_u32(zip32_2.val[1]);
 }
 
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16c, 4>& kernel)
+{
+  const int8x16x2_t zip8_1 = vzipq_s8(kernel.packet[0], kernel.packet[1]);
+  const int8x16x2_t zip8_2 = vzipq_s8(kernel.packet[2], kernel.packet[3]);
+
+  const int16x8x2_t zip16_1 = vzipq_s16(vreinterpretq_s16_s8(zip8_1.val[0]), vreinterpretq_s16_s8(zip8_2.val[0]));
+  const int16x8x2_t zip16_2 = vzipq_s16(vreinterpretq_s16_s8(zip8_1.val[1]), vreinterpretq_s16_s8(zip8_2.val[1]));
+
+  kernel.packet[0] = vreinterpretq_s8_s16(zip16_1.val[0]);
+  kernel.packet[1] = vreinterpretq_s8_s16(zip16_1.val[1]);
+  kernel.packet[2] = vreinterpretq_s8_s16(zip16_2.val[0]);
+  kernel.packet[3] = vreinterpretq_s8_s16(zip16_2.val[1]);
+}
+
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16uc, 4>& kernel)
 {
   const uint8x16x2_t zip8_1 = vzipq_u8(kernel.packet[0], kernel.packet[1]);
@@ -3149,6 +3183,88 @@ template<> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2l pselect(const Packet2l
 template<> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2ul pselect(const Packet2ul& mask, const Packet2ul& a, const Packet2ul& b)
 { return vbslq_u64(mask, a, b); }
 
+// Use armv8 rounding intinsics if available.
+#if EIGEN_ARCH_ARMV8
+template<> EIGEN_STRONG_INLINE Packet2f print<Packet2f>(const Packet2f& a)
+{ return vrndn_f32(a); }
+
+template<> EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a)
+{ return vrndnq_f32(a); }
+
+template<> EIGEN_STRONG_INLINE Packet2f pfloor<Packet2f>(const Packet2f& a)
+{ return vrndm_f32(a); }
+
+template<> EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a)
+{ return vrndmq_f32(a); }
+
+template<> EIGEN_STRONG_INLINE Packet2f pceil<Packet2f>(const Packet2f& a)
+{ return vrndp_f32(a); }
+
+template<> EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a)
+{ return vrndpq_f32(a); }
+
+#else
+
+template<> EIGEN_STRONG_INLINE Packet4f print(const Packet4f& a) {
+  // Adds and subtracts signum(a) * 2^23 to force rounding.
+  const Packet4f offset = 
+    pselect(pcmp_lt(a, pzero(a)), 
+      pset1<Packet4f>(-static_cast<float>(1<<23)),
+      pset1<Packet4f>(+static_cast<float>(1<<23)));
+  return psub(padd(a, offset), offset);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f print(const Packet2f& a) {
+  // Adds and subtracts signum(a) * 2^23 to force rounding.
+  const Packet2f offset = 
+    pselect(pcmp_lt(a, pzero(a)), 
+      pset1<Packet2f>(-static_cast<float>(1<<23)),
+      pset1<Packet2f>(+static_cast<float>(1<<23)));
+  return psub(padd(a, offset), offset);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a)
+{
+  const Packet4f cst_1 = pset1<Packet4f>(1.0f);
+  Packet4f tmp  = print<Packet4f>(a);
+  // If greater, subtract one.
+  Packet4f mask = pcmp_lt(a, tmp);
+  mask = pand(mask, cst_1);
+  return psub(tmp, mask);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f pfloor<Packet2f>(const Packet2f& a)
+{
+  const Packet2f cst_1 = pset1<Packet2f>(1.0f);
+  Packet2f tmp  = print<Packet2f>(a);
+  // If greater, subtract one.
+  Packet2f mask = pcmp_lt(a, tmp);
+  mask = pand(mask, cst_1);
+  return psub(tmp, mask);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a)
+{
+  const Packet4f cst_1 = pset1<Packet4f>(1.0f);
+  Packet4f tmp  = print<Packet4f>(a);
+  // If smaller, add one.
+  Packet4f mask = pcmp_lt(tmp, a);
+  mask = pand(mask, cst_1);
+  return padd(tmp, mask);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f pceil<Packet2f>(const Packet2f& a)
+{
+  const Packet2f cst_1 = pset1<Packet2f>(1.0);
+  Packet2f tmp  = print<Packet2f>(a);
+  // If smaller, add one.
+  Packet2f mask = pcmp_lt(tmp, a);
+  mask = pand(mask, cst_1);
+  return padd(tmp, mask);
+}
+
+#endif
+
 /**
  * Computes the integer square root
  * @remarks The calculation is performed using an algorithm which iterates through each binary digit of the result
@@ -3240,44 +3356,41 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
   return res;
 }
 
-#if EIGEN_FAST_MATH
-
-/* Functions for sqrt support packet2f/packet4f.*/
-// The EIGEN_FAST_MATH version uses the vrsqrte_f32 approximation and one step
-// of Newton's method, at a cost of 1-2 bits of precision as opposed to the
-// exact solution. It does not handle +inf, or denormalized numbers correctly.
-// The main advantage of this approach is not just speed, but also the fact that
-// it can be inlined and pipelined with other computations, further reducing its
-// effective latency. This is similar to Quake3's fast inverse square root.
-// For more details see: http://www.beyond3d.com/content/articles/8/
-template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& _x){
-  Packet4f half = vmulq_n_f32(_x, 0.5f);
-  Packet4ui denormal_mask = vandq_u32(vcgeq_f32(_x, vdupq_n_f32(0.0f)),
-                                      vcltq_f32(_x, pset1<Packet4f>((std::numeric_limits<float>::min)())));
+template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
   // Compute approximate reciprocal sqrt.
-  Packet4f x = vrsqrteq_f32(_x);
-  // Do a single step of Newton's iteration.
-  //the number 1.5f was set reference to Quake3's fast inverse square root
-  x = vmulq_f32(x, psub(pset1<Packet4f>(1.5f), pmul(half, pmul(x, x))));
-  // Flush results for denormals to zero.
-  return vreinterpretq_f32_u32(vbicq_u32(vreinterpretq_u32_f32(pmul(_x, x)), denormal_mask));
+  Packet4f x = vrsqrteq_f32(a);
+  // Do Newton iterations for 1/sqrt(x).
+  x = vmulq_f32(vrsqrtsq_f32(vmulq_f32(a, x), x), x);
+  x = vmulq_f32(vrsqrtsq_f32(vmulq_f32(a, x), x), x);
+  const Packet4f infinity = pset1<Packet4f>(NumTraits<float>::infinity());
+  return pselect(pcmp_eq(a, pzero(a)), infinity, x);
 }
 
-template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& _x){
-  Packet2f half = vmul_n_f32(_x, 0.5f);
-  Packet2ui denormal_mask = vand_u32(vcge_f32(_x, vdup_n_f32(0.0f)),
-                                     vclt_f32(_x, pset1<Packet2f>((std::numeric_limits<float>::min)())));
+template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
   // Compute approximate reciprocal sqrt.
-  Packet2f x = vrsqrte_f32(_x);
-  // Do a single step of Newton's iteration.
-  x = vmul_f32(x, psub(pset1<Packet2f>(1.5f), pmul(half, pmul(x, x))));
-  // Flush results for denormals to zero.
-  return vreinterpret_f32_u32(vbic_u32(vreinterpret_u32_f32(pmul(_x, x)), denormal_mask));
+  Packet2f x = vrsqrte_f32(a);
+  // Do Newton iterations for 1/sqrt(x).
+  x = vmul_f32(vrsqrts_f32(vmul_f32(a, x), x), x);
+  x = vmul_f32(vrsqrts_f32(vmul_f32(a, x), x), x);
+  const Packet2f infinity = pset1<Packet2f>(NumTraits<float>::infinity());
+  return pselect(pcmp_eq(a, pzero(a)), infinity, x);
 }
 
-#else
+// Unfortunately vsqrt_f32 is only available for A64.
+#if EIGEN_ARCH_ARM64
 template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& _x){return vsqrtq_f32(_x);}
 template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& _x){return vsqrt_f32(_x); }
+#else
+template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) {
+  const Packet4f infinity = pset1<Packet4f>(NumTraits<float>::infinity());
+  const Packet4f is_zero_or_inf = por(pcmp_eq(a, pzero(a)), pcmp_eq(a, infinity));
+  return pselect(is_zero_or_inf, a, pmul(a, prsqrt(a)));
+}
+template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
+  const Packet2f infinity = pset1<Packet2f>(NumTraits<float>::infinity());
+  const Packet2f is_zero_or_inf = por(pcmp_eq(a, pzero(a)), pcmp_eq(a, infinity));
+  return pselect(is_zero_or_inf, a, pmul(a, prsqrt(a)));
+}
 #endif
 
 //---------- bfloat16 ----------
@@ -3316,6 +3429,8 @@ template<> struct packet_traits<bfloat16> : default_packet_traits
     HasBlend     = 0,
     HasDiv       = 1,
     HasFloor     = 1,
+    HasCeil      = 1,
+    HasRint      = 1,
 
     HasSin  = EIGEN_FAST_MATH,
     HasCos  = EIGEN_FAST_MATH,
@@ -3325,7 +3440,7 @@ template<> struct packet_traits<bfloat16> : default_packet_traits
     HasTanh = EIGEN_FAST_MATH,
     HasErf  = EIGEN_FAST_MATH,
     HasBessel = 0,  // Issues with accuracy.
-    HasNdtri = 0,
+    HasNdtri = 0
   };
 };
 
@@ -3416,10 +3531,32 @@ template <> EIGEN_STRONG_INLINE Packet4bf pabs(const Packet4bf& a) {
   return F32ToBf16(pabs<Packet4f>(Bf16ToF32(a)));
 }
 
+template <> EIGEN_STRONG_INLINE Packet4bf pmin<PropagateNumbers, Packet4bf>(const Packet4bf &a,
+                                                                            const Packet4bf &b)
+{
+  return F32ToBf16(pmin<PropagateNumbers, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+template <> EIGEN_STRONG_INLINE Packet4bf pmin<PropagateNaN, Packet4bf>(const Packet4bf &a,
+                                                                        const Packet4bf &b)
+{
+  return F32ToBf16(pmin<PropagateNaN, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
 template <> EIGEN_STRONG_INLINE Packet4bf pmin<Packet4bf>(const Packet4bf &a,
                                                           const Packet4bf &b)
 {
   return F32ToBf16(pmin<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+template <> EIGEN_STRONG_INLINE Packet4bf pmax<PropagateNumbers, Packet4bf>(const Packet4bf &a,
+                                                                            const Packet4bf &b)
+{
+  return F32ToBf16(pmax<PropagateNumbers, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+template <> EIGEN_STRONG_INLINE Packet4bf pmax<PropagateNaN, Packet4bf>(const Packet4bf &a,
+                                                                        const Packet4bf &b)
+{
+  return F32ToBf16(pmax<PropagateNaN, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <> EIGEN_STRONG_INLINE Packet4bf pmax<Packet4bf>(const Packet4bf &a,
@@ -3455,9 +3592,19 @@ template<> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4bf pselect(const Packet4
   return pselect<Packet4us>(mask, a, b);
 }
 
+template<> EIGEN_STRONG_INLINE Packet4bf print<Packet4bf>(const Packet4bf& a)
+{
+  return F32ToBf16(print<Packet4f>(Bf16ToF32(a)));
+}
+
 template<> EIGEN_STRONG_INLINE Packet4bf pfloor<Packet4bf>(const Packet4bf& a)
 {
   return F32ToBf16(pfloor<Packet4f>(Bf16ToF32(a)));
+}
+
+template<> EIGEN_STRONG_INLINE Packet4bf pceil<Packet4bf>(const Packet4bf& a)
+{
+  return F32ToBf16(pceil<Packet4f>(Bf16ToF32(a)));
 }
 
 template<> EIGEN_STRONG_INLINE Packet4bf pconj(const Packet4bf& a) { return a; }
@@ -3634,13 +3781,16 @@ template<> struct packet_traits<double>  : default_packet_traits
     HasBlend     = 0,
 
     HasDiv   = 1,
-    HasFloor = 0,
+    HasFloor = 1,
+    HasCeil = 1,
+    HasRint = 1,
 
     HasSin  = 0,
     HasCos  = 0,
     HasLog  = 1,
     HasExp  = 1,
     HasSqrt = 1,
+    HasRsqrt = 1,
     HasTanh = 0,
     HasErf  = 0
   };
@@ -3673,6 +3823,12 @@ template<> EIGEN_STRONG_INLINE Packet2d padd<Packet2d>(const Packet2d& a, const 
 
 template<> EIGEN_STRONG_INLINE Packet2d psub<Packet2d>(const Packet2d& a, const Packet2d& b) { return vsubq_f64(a,b); }
 
+template<> EIGEN_STRONG_INLINE Packet2d pxor<Packet2d>(const Packet2d& , const Packet2d& );
+template<> EIGEN_STRONG_INLINE Packet2d paddsub<Packet2d>(const Packet2d& a, const Packet2d& b){
+  const Packet2d mask = {-0.0,0.0};
+  return padd(a, pxor(mask, b));
+}
+
 template<> EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a) { return vnegq_f64(a); }
 
 template<> EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) { return a; }
@@ -3692,22 +3848,19 @@ template<> EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d&
 
 template<> EIGEN_STRONG_INLINE Packet2d pmin<Packet2d>(const Packet2d& a, const Packet2d& b) { return vminq_f64(a,b); }
 
+#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
+// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8 systems).
+template<> EIGEN_STRONG_INLINE Packet2d pmin<PropagateNumbers, Packet2d>(const Packet2d& a, const Packet2d& b) { return vminnmq_f64(a, b); }
+template<> EIGEN_STRONG_INLINE Packet2d pmax<PropagateNumbers, Packet2d>(const Packet2d& a, const Packet2d& b) { return vmaxnmq_f64(a, b); }
+
+#endif
+
+template<> EIGEN_STRONG_INLINE Packet2d pmin<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) { return pmin<Packet2d>(a, b); }
+
 template<> EIGEN_STRONG_INLINE Packet2d pmax<Packet2d>(const Packet2d& a, const Packet2d& b) { return vmaxq_f64(a,b); }
 
-// WARNING: this pfloor implementation makes sense for inputs that fit in
-// signed int64 integers (up to ~9.22e18), hence this is currently only used
-// by pexp and not exposed through HasFloor.
-template<> EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a)
-{
-  const Packet2d cst_1 = pset1<Packet2d>(1.0);
-  /* perform a floorf */
-  const Packet2d tmp = vcvtq_f64_s64(vcvtq_s64_f64(a));
 
-  /* if greater, substract 1 */
-  uint64x2_t mask = vcgtq_f64(tmp, a);
-  mask = vandq_u64(mask, vreinterpretq_u64_f64(cst_1));
-  return vsubq_f64(tmp, vreinterpretq_f64_u64(mask));
-}
+template<> EIGEN_STRONG_INLINE Packet2d pmax<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) { return pmax<Packet2d>(a, b); }
 
 // Logical Operations are not supported for float, so we have to reinterpret casts using NEON intrinsics
 template<> EIGEN_STRONG_INLINE Packet2d pand<Packet2d>(const Packet2d& a, const Packet2d& b)
@@ -3812,43 +3965,36 @@ ptranspose(PacketBlock<Packet2d, 2>& kernel)
 template<> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2d pselect( const Packet2d& mask, const Packet2d& a, const Packet2d& b)
 { return vbslq_f64(vreinterpretq_u64_f64(mask), a, b); }
 
+template<> EIGEN_STRONG_INLINE Packet2d print<Packet2d>(const Packet2d& a)
+{ return vrndnq_f64(a); }
+
+template<> EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a)
+{ return vrndmq_f64(a); }
+
+template<> EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a)
+{ return vrndpq_f64(a); }
+
 template<> EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d& exponent)
-{ return pldexp_double(a, exponent); }
+{ return pldexp_generic(a, exponent); }
 
 template<> EIGEN_STRONG_INLINE Packet2d pfrexp<Packet2d>(const Packet2d& a, Packet2d& exponent)
-{ return pfrexp_double(a,exponent); }
+{ return pfrexp_generic(a,exponent); }
 
 template<> EIGEN_STRONG_INLINE Packet2d pset1frombits<Packet2d>(uint64_t from)
 { return vreinterpretq_f64_u64(vdupq_n_u64(from)); }
 
-#if EIGEN_FAST_MATH
-
-// Functions for sqrt support packet2d.
-// The EIGEN_FAST_MATH version uses the vrsqrte_f64 approximation and one step
-// of Newton's method, at a cost of 1-2 bits of precision as opposed to the
-// exact solution. It does not handle +inf, or denormalized numbers correctly.
-// The main advantage of this approach is not just speed, but also the fact that
-// it can be inlined and pipelined with other computations, further reducing its
-// effective latency. This is similar to Quake3's fast inverse square root.
-// For more details see: http://www.beyond3d.com/content/articles/8/
-template<> EIGEN_STRONG_INLINE Packet2d psqrt(const Packet2d& _x){
-  Packet2d half = vmulq_n_f64(_x, 0.5);
-  Packet2ul denormal_mask = vandq_u64(vcgeq_f64(_x, vdupq_n_f64(0.0)),
-                                      vcltq_f64(_x, pset1<Packet2d>((std::numeric_limits<double>::min)())));
+template<> EIGEN_STRONG_INLINE Packet2d prsqrt(const Packet2d& a) {
   // Compute approximate reciprocal sqrt.
-  Packet2d x = vrsqrteq_f64(_x);
-  // Do a single step of Newton's iteration.
-  //the number 1.5f was set reference to Quake3's fast inverse square root
-  x = vmulq_f64(x, psub(pset1<Packet2d>(1.5), pmul(half, pmul(x, x))));
-  // Do one more Newton's iteration to get more accurate result.
-  x = vmulq_f64(x, psub(pset1<Packet2d>(1.5), pmul(half, pmul(x, x))));
-  // Flush results for denormals to zero.
-  return vreinterpretq_f64_u64(vbicq_u64(vreinterpretq_u64_f64(pmul(_x, x)), denormal_mask));
+  Packet2d x = vrsqrteq_f64(a);
+  // Do Newton iterations for 1/sqrt(x).
+  x = vmulq_f64(vrsqrtsq_f64(vmulq_f64(a, x), x), x);
+  x = vmulq_f64(vrsqrtsq_f64(vmulq_f64(a, x), x), x);
+  x = vmulq_f64(vrsqrtsq_f64(vmulq_f64(a, x), x), x);
+  const Packet2d infinity = pset1<Packet2d>(NumTraits<double>::infinity());
+  return pselect(pcmp_eq(a, pzero(a)), infinity, x);
 }
 
-#else
 template<> EIGEN_STRONG_INLINE Packet2d psqrt(const Packet2d& _x){ return vsqrtq_f64(_x); }
-#endif
 
 #endif // EIGEN_ARCH_ARM64
 
@@ -3887,11 +4033,14 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasReduxp = 1,
     HasDiv = 1,
     HasFloor = 1,
+    HasCeil = 1,
+    HasRint = 1,
     HasSin = 0,
     HasCos = 0,
     HasLog = 0,
     HasExp = 0,
     HasSqrt = 1,
+    HasRsqrt = 1,
     HasErf = EIGEN_FAST_MATH,
     HasBessel = 0,  // Issues with accuracy.
     HasNdtri = 0,
@@ -4033,6 +4182,16 @@ EIGEN_STRONG_INLINE Packet4hf pmin<Packet4hf>(const Packet4hf& a, const Packet4h
   return vmin_f16(a, b);
 }
 
+#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
+// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8 systems).
+template<> EIGEN_STRONG_INLINE Packet4hf pmin<PropagateNumbers, Packet4hf>(const Packet4hf& a, const Packet4hf& b) { return vminnm_f16(a, b); }
+template<> EIGEN_STRONG_INLINE Packet8hf pmin<PropagateNumbers, Packet8hf>(const Packet8hf& a, const Packet8hf& b) { return vminnmq_f16(a, b); }
+#endif
+
+template<> EIGEN_STRONG_INLINE Packet4hf pmin<PropagateNaN, Packet4hf>(const Packet4hf& a, const Packet4hf& b) { return pmin<Packet4hf>(a, b); }
+
+template<> EIGEN_STRONG_INLINE Packet8hf pmin<PropagateNaN, Packet8hf>(const Packet8hf& a, const Packet8hf& b) { return pmin<Packet8hf>(a, b); }
+
 template <>
 EIGEN_STRONG_INLINE Packet8hf pmax<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
   return vmaxq_f16(a, b);
@@ -4042,6 +4201,16 @@ template <>
 EIGEN_STRONG_INLINE Packet4hf pmax<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
   return vmax_f16(a, b);
 }
+
+#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
+// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8 systems).
+template<> EIGEN_STRONG_INLINE Packet4hf pmax<PropagateNumbers, Packet4hf>(const Packet4hf& a, const Packet4hf& b) { return vmaxnm_f16(a, b); }
+template<> EIGEN_STRONG_INLINE Packet8hf pmax<PropagateNumbers, Packet8hf>(const Packet8hf& a, const Packet8hf& b) { return vmaxnmq_f16(a, b); }
+#endif
+
+template<> EIGEN_STRONG_INLINE Packet4hf pmax<PropagateNaN, Packet4hf>(const Packet4hf& a, const Packet4hf& b) { return pmax<Packet4hf>(a, b); }
+
+template<> EIGEN_STRONG_INLINE Packet8hf pmax<PropagateNaN, Packet8hf>(const Packet8hf& a, const Packet8hf& b) { return pmax<Packet8hf>(a, b); }
 
 #define EIGEN_MAKE_ARM_FP16_CMP_8(name)                                               \
   template <>                                                                         \
@@ -4077,28 +4246,28 @@ EIGEN_STRONG_INLINE Packet4hf pcmp_lt_or_nan<Packet4hf>(const Packet4hf& a, cons
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8hf pfloor<Packet8hf>(const Packet8hf& a) {
-  const Packet8hf cst_1 = pset1<Packet8hf>(Eigen::half(1.0f));
-  /* perform a floorf */
-  Packet8hf tmp = vcvtq_f16_s16(vcvtq_s16_f16(a));
-
-  /* if greater, substract 1 */
-  uint16x8_t mask = vcgtq_f16(tmp, a);
-  mask = vandq_u16(mask, vreinterpretq_u16_f16(cst_1));
-  return vsubq_f16(tmp, vreinterpretq_f16_u16(mask));
-}
+EIGEN_STRONG_INLINE Packet8hf print<Packet8hf>(const Packet8hf& a)
+{ return vrndnq_f16(a); }
 
 template <>
-EIGEN_STRONG_INLINE Packet4hf pfloor<Packet4hf>(const Packet4hf& a) {
-  const Packet4hf cst_1 = pset1<Packet4hf>(Eigen::half(1.0f));
-  /* perform a floorf */
-  Packet4hf tmp = vcvt_f16_s16(vcvt_s16_f16(a));
+EIGEN_STRONG_INLINE Packet4hf print<Packet4hf>(const Packet4hf& a)
+{ return vrndn_f16(a); }
 
-  /* if greater, substract 1 */
-  uint16x4_t mask = vcgt_f16(tmp, a);
-  mask = vand_u16(mask, vreinterpret_u16_f16(cst_1));
-  return vsub_f16(tmp, vreinterpret_f16_u16(mask));
-}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pfloor<Packet8hf>(const Packet8hf& a)
+{ return vrndmq_f16(a); }
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pfloor<Packet4hf>(const Packet4hf& a)
+{ return vrndm_f16(a); }
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pceil<Packet8hf>(const Packet8hf& a)
+{ return vrndpq_f16(a); }
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pceil<Packet4hf>(const Packet4hf& a)
+{ return vrndp_f16(a); }
 
 template <>
 EIGEN_STRONG_INLINE Packet8hf psqrt<Packet8hf>(const Packet8hf& a) {
@@ -4435,31 +4604,16 @@ EIGEN_STRONG_INLINE Eigen::half predux_max<Packet4hf>(const Packet4hf& a) {
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 4>& kernel)
 {
-  EIGEN_ALIGN16 Eigen::half in[4][8];
+  const float16x8x2_t zip16_1 = vzipq_f16(kernel.packet[0], kernel.packet[1]);
+  const float16x8x2_t zip16_2 = vzipq_f16(kernel.packet[2], kernel.packet[3]);
 
-  pstore<Eigen::half>(in[0], kernel.packet[0]);
-  pstore<Eigen::half>(in[1], kernel.packet[1]);
-  pstore<Eigen::half>(in[2], kernel.packet[2]);
-  pstore<Eigen::half>(in[3], kernel.packet[3]);
+  const float32x4x2_t zip32_1 = vzipq_f32(vreinterpretq_f32_f16(zip16_1.val[0]), vreinterpretq_f32_f16(zip16_2.val[0]));
+  const float32x4x2_t zip32_2 = vzipq_f32(vreinterpretq_f32_f16(zip16_1.val[1]), vreinterpretq_f32_f16(zip16_2.val[1]));
 
-  EIGEN_ALIGN16 Eigen::half out[4][8];
-
-  EIGEN_UNROLL_LOOP
-  for (int i = 0; i < 4; ++i) {
-    EIGEN_UNROLL_LOOP
-    for (int j = 0; j < 4; ++j) {
-      out[i][j] = in[j][2 * i];
-    }
-    EIGEN_UNROLL_LOOP
-    for (int j = 0; j < 4; ++j) {
-      out[i][j + 4] = in[j][2 * i + 1];
-    }
-  }
-
-  kernel.packet[0] = pload<Packet8hf>(out[0]);
-  kernel.packet[1] = pload<Packet8hf>(out[1]);
-  kernel.packet[2] = pload<Packet8hf>(out[2]);
-  kernel.packet[3] = pload<Packet8hf>(out[3]);
+  kernel.packet[0] = vreinterpretq_f16_f32(zip32_1.val[0]);
+  kernel.packet[1] = vreinterpretq_f16_f32(zip32_1.val[1]);
+  kernel.packet[2] = vreinterpretq_f16_f32(zip32_2.val[0]);
+  kernel.packet[3] = vreinterpretq_f16_f32(zip32_2.val[1]);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet4hf, 4>& kernel) {

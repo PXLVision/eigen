@@ -135,7 +135,7 @@ template<typename T, int Value> class variable_if_dynamic
     T value() { return T(Value); }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
     operator T() const { return T(Value); }
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     void setValue(T) {}
 };
 
@@ -159,7 +159,7 @@ template<typename T, int Value> class variable_if_dynamicindex
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit variable_if_dynamicindex(T v) { EIGEN_ONLY_USED_FOR_DEBUG(v); eigen_assert(v == T(Value)); }
     EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
     T value() { return T(Value); }
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     void setValue(T) {}
 };
 

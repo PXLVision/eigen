@@ -136,7 +136,7 @@ template<typename T, int Value> class variable_if_dynamic
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
     operator T() const { return T(Value); }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    void setValue(T) {}
+    void setValue(T) const {}
 };
 
 template<typename T> class variable_if_dynamic<T, Dynamic>

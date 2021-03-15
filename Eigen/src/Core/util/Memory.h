@@ -947,7 +947,7 @@ inline bool cpuid_is_vendor(int abcd[4], const int vendor[3])
 
 inline void queryCacheSizes_intel_direct(int& l1, int& l2, int& l3)
 {
-  int abcd[4];
+  unsigned int abcd[4];
   l1 = l2 = l3 = 0;
   int cache_id = 0;
   int cache_type = 0;
@@ -961,7 +961,7 @@ inline void queryCacheSizes_intel_direct(int& l1, int& l2, int& l3)
       int ways        = (abcd[1] & 0xFFC00000) >> 22; // B[31:22]
       int partitions  = (abcd[1] & 0x003FF000) >> 12; // B[21:12]
       int line_size   = (abcd[1] & 0x00000FFF) >>  0; // B[11:0]
-      int sets        = (abcd[2]);                    // C[31:0]
+      int sets        = int(abcd[2]);                 // C[31:0]
 
       int cache_size = (ways+1) * (partitions+1) * (line_size+1) * (sets+1);
 
@@ -979,7 +979,7 @@ inline void queryCacheSizes_intel_direct(int& l1, int& l2, int& l3)
 
 inline void queryCacheSizes_intel_codes(int& l1, int& l2, int& l3)
 {
-  int abcd[4];
+  unsigned int abcd[4];
   abcd[0] = abcd[1] = abcd[2] = abcd[3] = 0;
   l1 = l2 = l3 = 0;
   EIGEN_CPUID(abcd,0x00000002,0);

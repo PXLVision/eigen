@@ -603,7 +603,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h) {
   const unsigned int shifted_exp = 0x7c00 << 13; // exponent mask after shift
   float32_bits o;
 
-  o.u = (h.x & 0x7fff) << 13;             // exponent/mantissa bits
+  o.u = (h.x & 0x7fffu) << 13;            // exponent/mantissa bits
   unsigned int exp = shifted_exp & o.u;   // just the exponent
   o.u += (127 - 15) << 23;                // exponent adjust
 
@@ -615,7 +615,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h) {
     o.f -= magic.f;             // renormalize
   }
 
-  o.u |= (h.x & 0x8000) << 16;    // sign bit
+  o.u |= (h.x & 0x8000u) << 16;    // sign bit
   return o.f;
 #endif
 }

@@ -69,18 +69,20 @@ template<> EIGEN_STRONG_INLINE Packet2cf psub<Packet2cf>(const Packet2cf& a, con
 template<> EIGEN_STRONG_INLINE Packet2cf pxor<Packet2cf>(const Packet2cf& a, const Packet2cf& b);
 template<> EIGEN_STRONG_INLINE Packet2cf paddsub<Packet2cf>(const Packet2cf& a, const Packet2cf& b)
 {
-  const Packet4f mask = _mm_castsi128_ps(_mm_setr_epi32(0x80000000,0x80000000,0x0,0x0));
+  const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+  const Packet4f mask = _mm_castsi128_ps(_mm_setr_epi32(neg_mask,neg_mask,0x0,0x0));
   return Packet2cf(padd(a.v, pxor(mask, b.v)));
 }
 
 template<> EIGEN_STRONG_INLINE Packet2cf pnegate(const Packet2cf& a)
 {
-  const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x80000000,0x80000000,0x80000000,0x80000000));
+  const Packet4f mask = pset1frombits<Packet4f>(0x80000000u);
   return Packet2cf(_mm_xor_ps(a.v,mask));
 }
 template<> EIGEN_STRONG_INLINE Packet2cf pconj(const Packet2cf& a)
 {
-  const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x00000000,0x80000000,0x00000000,0x80000000));
+  const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+  const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x0,neg_mask,0x0,neg_mask));
   return Packet2cf(_mm_xor_ps(a.v,mask));
 }
 
@@ -94,7 +96,8 @@ template<> EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, con
 //                                  _mm_mul_ps(vec4f_swizzle1(a.v, 1, 1, 3, 3),
 //                                             vec4f_swizzle1(b.v, 1, 0, 3, 2))));
   #else
-  const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x80000000,0x00000000,0x80000000,0x00000000));
+  const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+  const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(neg_mask,0x0,neg_mask,0x0));
   return Packet2cf(_mm_add_ps(_mm_mul_ps(vec4f_swizzle1(a.v, 0, 0, 2, 2), b.v),
                               _mm_xor_ps(_mm_mul_ps(vec4f_swizzle1(a.v, 1, 1, 3, 3),
                                                     vec4f_swizzle1(b.v, 1, 0, 3, 2)), mask)));
@@ -187,7 +190,8 @@ template<> struct conj_helper<Packet2cf, Packet2cf, false,true>
     #ifdef EIGEN_VECTORIZE_SSE3
     return internal::pmul(a, pconj(b));
     #else
-    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x00000000,0x80000000,0x00000000,0x80000000));
+    const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x0,neg_mask,0x0,neg_mask));
     return Packet2cf(_mm_add_ps(_mm_xor_ps(_mm_mul_ps(vec4f_swizzle1(a.v, 0, 0, 2, 2), b.v), mask),
                                 _mm_mul_ps(vec4f_swizzle1(a.v, 1, 1, 3, 3),
                                            vec4f_swizzle1(b.v, 1, 0, 3, 2))));
@@ -205,7 +209,8 @@ template<> struct conj_helper<Packet2cf, Packet2cf, true,false>
     #ifdef EIGEN_VECTORIZE_SSE3
     return internal::pmul(pconj(a), b);
     #else
-    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x00000000,0x80000000,0x00000000,0x80000000));
+    const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x0,neg_mask,0x0,neg_mask));
     return Packet2cf(_mm_add_ps(_mm_mul_ps(vec4f_swizzle1(a.v, 0, 0, 2, 2), b.v),
                                 _mm_xor_ps(_mm_mul_ps(vec4f_swizzle1(a.v, 1, 1, 3, 3),
                                                       vec4f_swizzle1(b.v, 1, 0, 3, 2)), mask)));
@@ -223,7 +228,8 @@ template<> struct conj_helper<Packet2cf, Packet2cf, true,true>
     #ifdef EIGEN_VECTORIZE_SSE3
     return pconj(internal::pmul(a, b));
     #else
-    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x00000000,0x80000000,0x00000000,0x80000000));
+    const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x0,neg_mask,0x0,neg_mask));
     return Packet2cf(_mm_sub_ps(_mm_xor_ps(_mm_mul_ps(vec4f_swizzle1(a.v, 0, 0, 2, 2), b.v), mask),
                                 _mm_mul_ps(vec4f_swizzle1(a.v, 1, 1, 3, 3),
                                            vec4f_swizzle1(b.v, 1, 0, 3, 2))));
@@ -301,7 +307,8 @@ template<> EIGEN_STRONG_INLINE Packet1cd psub<Packet1cd>(const Packet1cd& a, con
 template<> EIGEN_STRONG_INLINE Packet1cd pnegate(const Packet1cd& a) { return Packet1cd(pnegate(Packet2d(a.v))); }
 template<> EIGEN_STRONG_INLINE Packet1cd pconj(const Packet1cd& a)
 {
-  const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(0x80000000,0x0,0x0,0x0));
+  const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+  const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(neg_mask,0x0,0x0,0x0));
   return Packet1cd(_mm_xor_pd(a.v,mask));
 }
 
@@ -312,7 +319,8 @@ template<> EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, con
                                  _mm_mul_pd(vec2d_swizzle1(a.v, 1, 1),
                                             vec2d_swizzle1(b.v, 1, 0))));
   #else
-  const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(0x0,0x0,0x80000000,0x0));
+  const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+  const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(0x0,0x0,neg_mask,0x0));
   return Packet1cd(_mm_add_pd(_mm_mul_pd(vec2d_swizzle1(a.v, 0, 0), b.v),
                               _mm_xor_pd(_mm_mul_pd(vec2d_swizzle1(a.v, 1, 1),
                                                     vec2d_swizzle1(b.v, 1, 0)), mask)));
@@ -370,7 +378,8 @@ template<> struct conj_helper<Packet1cd, Packet1cd, false,true>
     #ifdef EIGEN_VECTORIZE_SSE3
     return internal::pmul(a, pconj(b));
     #else
-    const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(0x80000000,0x0,0x0,0x0));
+    const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+    const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(neg_mask,0x0,0x0,0x0));
     return Packet1cd(_mm_add_pd(_mm_xor_pd(_mm_mul_pd(vec2d_swizzle1(a.v, 0, 0), b.v), mask),
                                 _mm_mul_pd(vec2d_swizzle1(a.v, 1, 1),
                                            vec2d_swizzle1(b.v, 1, 0))));
@@ -388,7 +397,8 @@ template<> struct conj_helper<Packet1cd, Packet1cd, true,false>
     #ifdef EIGEN_VECTORIZE_SSE3
     return internal::pmul(pconj(a), b);
     #else
-    const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(0x80000000,0x0,0x0,0x0));
+    const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+    const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(neg_mask,0x0,0x0,0x0));
     return Packet1cd(_mm_add_pd(_mm_mul_pd(vec2d_swizzle1(a.v, 0, 0), b.v),
                                 _mm_xor_pd(_mm_mul_pd(vec2d_swizzle1(a.v, 1, 1),
                                                       vec2d_swizzle1(b.v, 1, 0)), mask)));
@@ -406,7 +416,8 @@ template<> struct conj_helper<Packet1cd, Packet1cd, true,true>
     #ifdef EIGEN_VECTORIZE_SSE3
     return pconj(internal::pmul(a, b));
     #else
-    const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(0x80000000,0x0,0x0,0x0));
+    const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+    const __m128d mask = _mm_castsi128_pd(_mm_set_epi32(neg_mask,0x0,0x0,0x0));
     return Packet1cd(_mm_sub_pd(_mm_xor_pd(_mm_mul_pd(vec2d_swizzle1(a.v, 0, 0), b.v), mask),
                                 _mm_mul_pd(vec2d_swizzle1(a.v, 1, 1),
                                            vec2d_swizzle1(b.v, 1, 0))));

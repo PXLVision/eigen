@@ -724,12 +724,12 @@ template<> EIGEN_STRONG_INLINE Packet4d preverse(const Packet4d& a)
 // pabs should be ok
 template<> EIGEN_STRONG_INLINE Packet8f pabs(const Packet8f& a)
 {
-  const Packet8f mask = _mm256_castsi256_ps(_mm256_setr_epi32(0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF));
+  const Packet8f mask = pset1frombits<Packet8f>(0x7FFFFFFFu);
   return _mm256_and_ps(a,mask);
 }
 template<> EIGEN_STRONG_INLINE Packet4d pabs(const Packet4d& a)
 {
-  const Packet4d mask = _mm256_castsi256_pd(_mm256_setr_epi32(0xFFFFFFFF,0x7FFFFFFF,0xFFFFFFFF,0x7FFFFFFF,0xFFFFFFFF,0x7FFFFFFF,0xFFFFFFFF,0x7FFFFFFF));
+  const Packet4d mask = pset1frombits<Packet4d,uint64_t>(0x7FFFFFFFFFFFFFFFull);
   return _mm256_and_pd(a,mask);
 }
 
@@ -936,7 +936,11 @@ template<> EIGEN_STRONG_INLINE Packet4d pblend(const Selector<4>& ifPacket, cons
 template<> struct unpacket_traits<Packet8h> { typedef Eigen::half type; enum {size=8, alignment=Aligned16, vectorizable=true, masked_load_available=false, masked_store_available=false}; typedef Packet8h half; };
 
 template<> EIGEN_STRONG_INLINE Packet8h pset1<Packet8h>(const Eigen::half& from) {
-  return _mm_set1_epi16(numext::bit_cast<numext::uint16_t>(from));
+  return _mm_set1_epi16(numext::bit_cast<numext::int16_t>(from));
+}
+
+template<> EIGEN_STRONG_INLINE Packet8h pset1frombits<Packet8h>(numext::uint16_t from) {
+  return _mm_set1_epi16(static_cast<numext::int16_t>(from));
 }
 
 template<> EIGEN_STRONG_INLINE Eigen::half pfirst<Packet8h>(const Packet8h& from) {

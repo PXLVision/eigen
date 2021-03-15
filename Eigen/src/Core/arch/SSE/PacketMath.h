@@ -261,8 +261,8 @@ template<> EIGEN_STRONG_INLINE Packet4i pset1<Packet4i>(const int&    from) { re
 #endif
 template<> EIGEN_STRONG_INLINE Packet16b pset1<Packet16b>(const bool&    from) { return _mm_set1_epi8(static_cast<char>(from)); }
 
-template<> EIGEN_STRONG_INLINE Packet4f pset1frombits<Packet4f>(unsigned int from) { return _mm_castsi128_ps(pset1<Packet4i>(from)); }
-template<> EIGEN_STRONG_INLINE Packet2d pset1frombits<Packet2d>(uint64_t from) { return _mm_castsi128_pd(_mm_set1_epi64x(from)); }
+template<> EIGEN_STRONG_INLINE Packet4f pset1frombits<Packet4f>(unsigned int from) { return _mm_castsi128_ps(pset1<Packet4i>(static_cast<int>(from))); }
+template<> EIGEN_STRONG_INLINE Packet2d pset1frombits<Packet2d>(uint64_t from) { return _mm_castsi128_pd(_mm_set1_epi64x(static_cast<int64_t>(from))); }
 
 template<> EIGEN_STRONG_INLINE Packet4f peven_mask(const Packet4f& /*a*/) { return _mm_castsi128_ps(_mm_set_epi32(0, -1, 0, -1)); }
 template<> EIGEN_STRONG_INLINE Packet4i peven_mask(const Packet4i& /*a*/) { return _mm_set_epi32(0, -1, 0, -1); }
@@ -304,7 +304,9 @@ template<> EIGEN_STRONG_INLINE Packet4f paddsub<Packet4f>(const Packet4f& a, con
 #ifdef EIGEN_VECTORIZE_SSE3
   return _mm_addsub_ps(a,b);
 #else
-  const Packet4f mask = _mm_castsi128_ps(_mm_setr_epi32(0x80000000,0x0,0x80000000,0x0));
+  // Explicitly set bits of int mask.
+  const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+  const Packet4f mask = _mm_castsi128_ps(_mm_setr_epi32(neg_mask,0x0,neg_mask,0x0));
   return padd(a, pxor(mask, b));
 #endif
 }
@@ -315,19 +317,21 @@ template<> EIGEN_STRONG_INLINE Packet2d paddsub<Packet2d>(const Packet2d& a, con
 #ifdef EIGEN_VECTORIZE_SSE3  
   return _mm_addsub_pd(a,b); 
 #else
-  const Packet2d mask = _mm_castsi128_pd(_mm_setr_epi32(0x0,0x80000000,0x0,0x0)); 
+  // Explicitly set bits of mask.
+  const int neg_mask = numext::bit_cast<numext::int32_t>(0x80000000);
+  const Packet2d mask = _mm_castsi128_pd(_mm_setr_epi32(0x0,neg_mask,0x0,0x0)); 
   return padd(a, pxor(mask, b));
 #endif
 }
 
 template<> EIGEN_STRONG_INLINE Packet4f pnegate(const Packet4f& a)
 {
-  const Packet4f mask = _mm_castsi128_ps(_mm_setr_epi32(0x80000000,0x80000000,0x80000000,0x80000000));
+  const Packet4f mask = pset1frombits<Packet4f>(0x80000000u);
   return _mm_xor_ps(a,mask);
 }
 template<> EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a)
 {
-  const Packet2d mask = _mm_castsi128_pd(_mm_setr_epi32(0x0,0x80000000,0x0,0x80000000));
+  const Packet2d mask = pset1frombits<Packet2d, uint64_t>(0x800000000000ull);
   return _mm_xor_pd(a,mask);
 }
 template<> EIGEN_STRONG_INLINE Packet4i pnegate(const Packet4i& a)
@@ -601,12 +605,12 @@ template<int N> EIGEN_STRONG_INLINE Packet4i plogical_shift_left    (const Packe
 
 template<> EIGEN_STRONG_INLINE Packet4f pabs(const Packet4f& a)
 {
-  const Packet4f mask = _mm_castsi128_ps(_mm_setr_epi32(0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF));
+  const Packet4f mask = pset1frombits<Packet4f>(0x7FFFFFFFu);
   return _mm_and_ps(a,mask);
 }
 template<> EIGEN_STRONG_INLINE Packet2d pabs(const Packet2d& a)
 {
-  const Packet2d mask = _mm_castsi128_pd(_mm_setr_epi32(0xFFFFFFFF,0x7FFFFFFF,0xFFFFFFFF,0x7FFFFFFF));
+  const Packet2d mask = pset1frombits<Packet2d, uint64_t>(0x7FFFFFFFFFFFFFFFull);
   return _mm_and_pd(a,mask);
 }
 template<> EIGEN_STRONG_INLINE Packet4i pabs(const Packet4i& a)

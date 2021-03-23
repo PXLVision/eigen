@@ -534,8 +534,19 @@ ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag
     while (start>0 && subdiag[start-1]!=0)
       start--;
 
+    DiagType old_diag = diag;
+    SubDiagType old_subdiag = subdiag;
     internal::tridiagonal_qr_step<MatrixType::Flags&RowMajorBit ? RowMajor : ColMajor>(diag.data(), subdiag.data(), start, end, computeEigenvectors ? eivec.data() : (Scalar*)0, n);
+    
+    std::cout << "  iter " << iter << std::endl;
+    const Scalar eps = 0; // NumTraits<Scalar>::epsilon()
+    if (diag.isApprox(old_diag, eps) && subdiag.isApprox(old_subdiag, eps)) {
+      std::cout << "Diags haven't changed!" << std::endl;
+    }
+    
   }
+  
+  std::cout << "Iterations: " << iter << std::endl;
   if (iter <= maxIterations * n)
     info = Success;
   else
@@ -557,6 +568,8 @@ ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag
           eivec.col(i).swap(eivec.col(k+i));
       }
     }
+  } else {
+    std::cout << "No convergence" << std::endl;
   }
   return info;
 }
@@ -826,24 +839,32 @@ EIGEN_DEVICE_FUNC
 static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index start, Index end, Scalar* matrixQ, Index n)
 {
   EIGEN_USING_STD(abs);
+  // Wilkinson Shift.
   RealScalar td = (diag[end-1] - diag[end])*RealScalar(0.5);
   RealScalar e = subdiag[end-1];
   // Note that thanks to scaling, e^2 or td^2 cannot overflow, however they can still
   // underflow thus leading to inf/NaN values when using the following commented code:
-//   RealScalar e2 = numext::abs2(subdiag[end-1]);
-//   RealScalar mu = diag[end] - e2 / (td + (td>0 ? 1 : -1) * sqrt(td*td + e2));
+  //   RealScalar e2 = numext::abs2(subdiag[end-1]);
+  //   RealScalar mu = diag[end] - e2 / (td + (td>0 ? 1 : -1) * sqrt(td*td + e2));
   // This explain the following, somewhat more complicated, version:
   RealScalar mu = diag[end];
-  if(td==RealScalar(0))
+  if(td==RealScalar(0)) {
     mu -= abs(e);
+  } else if (e == RealScalar(0)) {
+    // nothing
+  }
   else
   {
-    RealScalar e2 = numext::abs2(subdiag[end-1]);
-    RealScalar h = numext::hypot(td,e);
-    if(e2==RealScalar(0)) mu -= (e / (td + (td>RealScalar(0) ? RealScalar(1) : RealScalar(-1)))) * (e / h);
-    else                  mu -= e2 / (td + (td>RealScalar(0) ? h : -h));
+    const RealScalar e2 = numext::abs2(e);
+    const RealScalar h = numext::hypot(td,e);
+    if(e2==RealScalar(0)) {
+      const RealScalar v = (e / (td / e + (td>RealScalar(0) ? RealScalar(1) : RealScalar(-1)))) * (h / e);
+      mu -= v;
+    } else {
+      mu -= e2 / (td + (td>RealScalar(0) ? h : -h)); 
+    }
   }
-  
+
   RealScalar x = diag[start] - mu;
   RealScalar z = subdiag[start];
   for (Index k = start; k < end; ++k)

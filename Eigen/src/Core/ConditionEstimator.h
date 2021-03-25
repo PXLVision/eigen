@@ -68,12 +68,12 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
     return 0;
 
   // Disable Index to float conversion warning
-#ifdef __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   #pragma warning push
   #pragma warning ( disable : 2259 )
 #endif
   Vector v = dec.solve(Vector::Ones(n) / Scalar(n));
-#ifdef __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   #pragma warning pop
 #endif
 

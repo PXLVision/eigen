@@ -471,12 +471,12 @@ template<typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::mean() const
 {
-#ifdef __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   #pragma warning push
   #pragma warning ( disable : 2259 )
 #endif
   return Scalar(derived().redux(Eigen::internal::scalar_sum_op<Scalar,Scalar>())) / Scalar(this->size());
-#ifdef __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   #pragma warning pop
 #endif
 }

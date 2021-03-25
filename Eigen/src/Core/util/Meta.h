@@ -243,12 +243,12 @@ private:
 
 public:
   static typename internal::remove_reference<From>::type* ms_from;
-#ifdef __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   #pragma warning push
   #pragma warning ( disable : 2259 )
 #endif
   enum { value = sizeof(test<To>(*ms_from, 0))==sizeof(yes) };
-#ifdef __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   #pragma warning pop
 #endif
 };

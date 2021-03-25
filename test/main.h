@@ -841,7 +841,7 @@ int main(int argc, char *argv[])
 }
 
 // These warning are disabled here such that they are still ON when parsing Eigen's header files.
-#if defined __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   // remark #383: value copied to temporary, reference to temporary used
   //  -> this warning is raised even for legal usage as: g_test_stack.push_back("foo"); where g_test_stack is a std::vector<std::string>
   // remark #1418: external function definition with no prior declaration
@@ -851,7 +851,7 @@ int main(int argc, char *argv[])
   #pragma warning disable 279 383 1418 1572
 #endif
 
-#ifdef _MSC_VER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(_MSC_VER)
   // 4503 - decorated name length exceeded, name was truncated
   #pragma warning( disable : 4503)
 #endif

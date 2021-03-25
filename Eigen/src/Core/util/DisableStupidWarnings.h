@@ -1,6 +1,7 @@
 #ifndef EIGEN_WARNINGS_DISABLED
 #define EIGEN_WARNINGS_DISABLED
 
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS)
 #ifdef _MSC_VER
   // 4100 - unreferenced formal parameter (occurred e.g. in aligned_allocator::destroy(pointer p))
   // 4101 - unreferenced local variable
@@ -103,4 +104,5 @@
 #  error "Do not include \"DisableStupidWarnings.h\" recursively more than twice!"
 # endif
 
+#endif // !defined(EIGEN_DONT_DISABLE_WARNINGS)
 #endif // not EIGEN_WARNINGS_DISABLED

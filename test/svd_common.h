@@ -252,7 +252,7 @@ void svd_test_all_computation_options(const MatrixType& m, bool full_only)
   CALL_SUBTEST(( svd_least_square<SvdType>(m, ComputeFullU | ComputeFullV) ));
   CALL_SUBTEST(( svd_min_norm(m, ComputeFullU | ComputeFullV) ));
   
-  #if defined __INTEL_COMPILER
+  #if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
   // remark #111: statement is unreachable
   #pragma warning disable 111
   #endif
@@ -347,7 +347,7 @@ void svd_inf_nan()
 template<typename>
 void svd_underoverflow()
 {
-#if defined __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
 // shut up warning #239: floating point underflow
 #pragma warning push
 #pragma warning disable 239
@@ -380,7 +380,7 @@ void svd_underoverflow()
 
   } while((id<int(value_set.size())).all());
   
-#if defined __INTEL_COMPILER
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__INTEL_COMPILER)
 #pragma warning pop
 #endif
   

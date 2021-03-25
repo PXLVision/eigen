@@ -11,7 +11,7 @@
 #include "main.h"
 #include <typeinfo>
 
-#if defined __GNUC__ && __GNUC__>=6
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && defined(__GNUC__) && __GNUC__>=6
   #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif
 // using namespace Eigen;

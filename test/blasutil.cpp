@@ -13,7 +13,7 @@
 // for packet_traits<Packet*>
 // => The only workaround would be to wrap _m128 and the likes
 //    within wrappers.
-#if EIGEN_GNUC_AT_LEAST(6,0)
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && EIGEN_GNUC_AT_LEAST(6,0)
     #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif
 

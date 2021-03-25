@@ -12,7 +12,7 @@
 
 #include <ostream>
 
-#if EIGEN_COMP_GNUC
+#if !defined(EIGEN_DONT_DISABLE_WARNINGS) && EIGEN_COMP_GNUC
 #pragma GCC diagnostic ignored "-Wshadow"
 #endif
 

@@ -143,7 +143,7 @@ template<typename T> class variable_if_dynamic<T, Dynamic>
 {
     T m_value;
   public:
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit variable_if_dynamic(T value = 0) : m_value(value) {}
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit variable_if_dynamic(T value = 0) EIGEN_NO_THROW : m_value(value) {}
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T value() const { return m_value; }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator T() const { return m_value; }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setValue(T value) { m_value = value; }

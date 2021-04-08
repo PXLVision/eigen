@@ -50,6 +50,10 @@ bool is_generic_randaccess_stl_iterator(const internal::generic_randaccess_stl_i
 template<typename Iter>
 bool is_default_constructible_and_assignable(const Iter& it)
 {
+#if EIGEN_HAS_CXX11
+  VERIFY(std::is_default_constructible<Iter>::value);
+  VERIFY(std::is_nothrow_default_constructible<Iter>::value);
+#endif
   Iter it2;
   it2 = it;
   return (it==it2);

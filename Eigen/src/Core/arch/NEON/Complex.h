@@ -64,8 +64,8 @@ template<> struct packet_traits<std::complex<float> > : default_packet_traits
     HasMul       = 1,
     HasDiv       = 1,
     HasNegate    = 1,
-    HasAbs       = 0,
-    HasAbs2      = 0,
+    HasAbs       = 1,
+    HasAbs2      = 1,
     HasMin       = 0,
     HasMax       = 0,
     HasSetLinear = 0
@@ -143,6 +143,31 @@ template<> EIGEN_STRONG_INLINE Packet2cf pconj(const Packet2cf& a)
 {
   const Packet4ui b = vreinterpretq_u32_f32(a.v);
   return Packet2cf(vreinterpretq_f32_u32(veorq_u32(b, p4ui_CONJ_XOR())));
+}
+
+template<> EIGEN_STRONG_INLINE Packet1cf pabs2(const Packet1cf& a) {
+  const Packet2f zero = pzero(a.v);
+  const Packet2f norm = vpadd_f32(pmul(a.v, a.v), zero);
+  return Packet1cf(norm);
+}
+template<> EIGEN_STRONG_INLINE Packet2cf pabs2(const Packet2cf& a) {
+  const Packet4f squared = pmul(a.v, a.v);
+#if EIGEN_ARCH_ARM64
+  // vpaddq and vzip1q are only available starting at armv8 A64.
+  const Packet4f zero = pzero(a.v);
+  const Packet4f norm = vzip1q_f32(vpaddq_f32(squared, zero), zero);
+#else
+  const Packet4f tmp = padd(squared, vrev64q_f32(squared));
+  const Packet4f norm = pand(tmp, peven_mask(tmp));
+#endif
+  return Packet2cf(norm);
+}
+
+template<> EIGEN_STRONG_INLINE Packet1cf pabs(const Packet1cf& a) {
+  return Packet1cf(psqrt<Packet2f>(pabs2(a).v));
+}
+template<> EIGEN_STRONG_INLINE Packet2cf pabs(const Packet2cf& a) {
+  return Packet2cf(psqrt<Packet4f>(pabs2(a).v));
 }
 
 template<> EIGEN_STRONG_INLINE Packet1cf pmul<Packet1cf>(const Packet1cf& a, const Packet1cf& b)
@@ -481,8 +506,8 @@ template<> struct packet_traits<std::complex<double> >  : default_packet_traits
     HasMul    = 1,
     HasDiv    = 1,
     HasNegate = 1,
-    HasAbs    = 0,
-    HasAbs2   = 0,
+    HasAbs    = 1,
+    HasAbs2   = 1,
     HasMin    = 0,
     HasMax    = 0,
     HasSetLinear = 0
@@ -527,6 +552,16 @@ template<> EIGEN_STRONG_INLINE Packet1cd pnegate(const Packet1cd& a)
 
 template<> EIGEN_STRONG_INLINE Packet1cd pconj(const Packet1cd& a)
 { return Packet1cd(vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(a.v), p2ul_CONJ_XOR))); }
+
+template<> EIGEN_STRONG_INLINE Packet1cd pabs2(const Packet1cd& a) {
+  const Packet2d zero = pzero(a.v);
+  const Packet2d squared = pmul(a.v, a.v);
+  return Packet1cd(vpaddq_f64(squared, zero));
+}
+
+template<> EIGEN_STRONG_INLINE Packet1cd pabs(const Packet1cd& a) {
+  return Packet1cd(psqrt<Packet2d>(pabs2(a).v));
+}
 
 template<> EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, const Packet1cd& b)
 {

@@ -38,8 +38,8 @@ template<> struct packet_traits<std::complex<float> >  : default_packet_traits
     HasDiv    = 1,
     HasNegate = 1,
     HasSqrt   = 1,
-    HasAbs    = 0,
-    HasAbs2   = 0,
+    HasAbs    = 1,
+    HasAbs2   = 1,
     HasMin    = 0,
     HasMax    = 0,
     HasSetLinear = 0
@@ -72,6 +72,18 @@ template<> EIGEN_STRONG_INLINE Packet8cf pconj(const Packet8cf& a)
     0x00000000,0x80000000,0x00000000,0x80000000,0x00000000,0x80000000,0x00000000,0x80000000,
     0x00000000,0x80000000,0x00000000,0x80000000,0x00000000,0x80000000,0x00000000,0x80000000));
   return Packet8cf(pxor(a.v,mask));
+}
+
+template<> EIGEN_STRONG_INLINE Packet8cf pabs2<Packet8cf>(const Packet8cf& a)
+{
+  const Packet16f tmp  = pmul(a.v, a.v);
+  const Packet16f tmp2 = _mm512_castsi512_ps(_mm512_srli_epi64(_mm512_castps_si512(tmp), 32));
+  return Packet8cf(pand(padd(tmp, tmp2), peven_mask(tmp)));
+}
+
+template<> EIGEN_STRONG_INLINE Packet8cf pabs<Packet8cf>(const Packet8cf& a)
+{
+  return Packet8cf(psqrt<Packet16f>(pabs2<Packet8cf>(a).v));
 }
 
 template<> EIGEN_STRONG_INLINE Packet8cf pmul<Packet8cf>(const Packet8cf& a, const Packet8cf& b)
@@ -226,8 +238,8 @@ template<> struct packet_traits<std::complex<double> >  : default_packet_traits
     HasDiv    = 1,
     HasNegate = 1,
     HasSqrt   = 1,
-    HasAbs    = 0,
-    HasAbs2   = 0,
+    HasAbs    = 1,
+    HasAbs2   = 1,
     HasMin    = 0,
     HasMax    = 0,
     HasSetLinear = 0
@@ -256,6 +268,18 @@ template<> EIGEN_STRONG_INLINE Packet4cd pconj(const Packet4cd& a)
           _mm512_set_epi32(0x80000000,0x0,0x0,0x0,0x80000000,0x0,0x0,0x0,
                            0x80000000,0x0,0x0,0x0,0x80000000,0x0,0x0,0x0));
   return Packet4cd(pxor(a.v,mask));
+}
+
+template<> EIGEN_STRONG_INLINE Packet4cd pabs2<Packet4cd>(const Packet4cd& a)
+{
+  const Packet8d tmp = pmul(a.v, a.v);
+  const Packet8d tmp2 = _mm512_permute_pd(tmp, 0x55);
+  return Packet4cd(pand(padd(tmp, tmp2), peven_mask(tmp)));
+}
+
+template<> EIGEN_STRONG_INLINE Packet4cd pabs<Packet4cd>(const Packet4cd& a)
+{
+  return Packet4cd(psqrt<Packet8d>(pabs2<Packet4cd>(a).v));
 }
 
 template<> EIGEN_STRONG_INLINE Packet4cd pmul<Packet4cd>(const Packet4cd& a, const Packet4cd& b)

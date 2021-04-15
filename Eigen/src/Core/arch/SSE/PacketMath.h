@@ -152,7 +152,9 @@ struct packet_traits<float> : default_packet_traits {
 #ifdef EIGEN_VECTORIZE_SSE4_1
     HasRound = 1,
 #endif
-    HasRint = 1
+    HasRint = 1,
+    HasAbs = 1,
+    HasAbs2 = 1
   };
 };
 template <>
@@ -177,7 +179,9 @@ struct packet_traits<double> : default_packet_traits {
 #ifdef EIGEN_VECTORIZE_SSE4_1
     HasRound = 1,
 #endif
-    HasRint = 1
+    HasRint = 1,
+    HasAbs = 1,
+    HasAbs2 = 1
   };
 };
 #endif
@@ -191,7 +195,9 @@ template<> struct packet_traits<int>    : default_packet_traits
     size=4,
 
     HasShift = 1,
-    HasBlend = 1
+    HasBlend = 1,
+    HasAbs = 1,
+    HasAbs2 = 1
   };
 };
 

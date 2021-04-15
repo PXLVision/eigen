@@ -67,7 +67,7 @@ struct packet_traits<half> : default_packet_traits {
     HasDiv    = 1,
     HasNegate = 1,
     HasAbs    = 1,
-    HasAbs2   = 0,
+    HasAbs2   = 1,
     HasMin    = 1,
     HasMax    = 1,
     HasConj   = 1,
@@ -102,13 +102,14 @@ template<> struct packet_traits<float>  : default_packet_traits
     size = 16,
     HasHalfPacket = 1,
 
-    HasAbs = 1,
-    HasMin    = 1,
-    HasMax    = 1,
-    HasConj   = 1,
+    HasAbs   = 1,
+    HasAbs2  = 1,
+    HasMin   = 1,
+    HasMax   = 1,
+    HasConj  = 1,
     HasBlend = 0,
-    HasSin = EIGEN_FAST_MATH,
-    HasCos = EIGEN_FAST_MATH,
+    HasSin   = EIGEN_FAST_MATH,
+    HasCos   = EIGEN_FAST_MATH,
 #if EIGEN_GNUC_AT_LEAST(5, 3) || (!EIGEN_COMP_GNUC_STRICT)
     HasLog = 1,
     HasLog1p  = 1,
@@ -148,7 +149,9 @@ template<> struct packet_traits<double> : default_packet_traits
     HasRound = 1,
     HasFloor = 1,
     HasCeil = 1,
-    HasRint = 1
+    HasRint = 1,
+    HasAbs = 1,
+    HasAbs2 = 1
   };
 };
 
@@ -1865,7 +1868,9 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasErf = EIGEN_FAST_MATH,
 #endif
     HasCmp  = 1,
-    HasDiv = 1
+    HasDiv = 1,
+    HasAbs = 1,
+    HasAbs2 = 1,
   };
 };
 

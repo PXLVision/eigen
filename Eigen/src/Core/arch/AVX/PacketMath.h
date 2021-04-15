@@ -83,7 +83,9 @@ template<> struct packet_traits<float>  : default_packet_traits
     HasRound = 1,
     HasFloor = 1,
     HasCeil = 1,
-    HasRint = 1
+    HasRint = 1,
+    HasAbs = 1,
+    HasAbs2 = 1
   };
 };
 template<> struct packet_traits<double> : default_packet_traits
@@ -106,7 +108,9 @@ template<> struct packet_traits<double> : default_packet_traits
     HasRound = 1,
     HasFloor = 1,
     HasCeil = 1,
-    HasRint = 1
+    HasRint = 1,
+    HasAbs = 1,
+    HasAbs2 = 1
   };
 };
 
@@ -130,7 +134,7 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasCos    = EIGEN_FAST_MATH,
     HasNegate = 1,
     HasAbs    = 1,
-    HasAbs2   = 0,
+    HasAbs2   = 1,
     HasMin    = 1,
     HasMax    = 1,
     HasConj   = 1,
@@ -174,7 +178,7 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasNegate = 1,
     HasAbs    = 1,
-    HasAbs2   = 0,
+    HasAbs2   = 1,
     HasMin    = 1,
     HasMax    = 1,
     HasConj   = 1,

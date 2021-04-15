@@ -943,7 +943,8 @@ void packetmath_notcomplex() {
 
   CHECK_CWISE2_IF(PacketTraits::HasMin, propagate_number_min, internal::pmin<PropagateNumbers>);
   CHECK_CWISE2_IF(PacketTraits::HasMax, propagate_number_max, internal::pmax<PropagateNumbers>);
-  CHECK_CWISE1(numext::abs, internal::pabs);
+  CHECK_CWISE1_IF(PacketTraits::HasAbs, numext::abs, internal::pabs);
+  CHECK_CWISE1_IF(PacketTraits::HasAbs2, numext::abs2, internal::pabs2);
   CHECK_CWISE2_IF(PacketTraits::HasAbsDiff, REF_ABS_DIFF, internal::pabsdiff);
 
   ref[0] = data1[0];
@@ -1064,6 +1065,9 @@ void packetmath_complex() {
     data1[i] = internal::random<Scalar>() * Scalar(1e2);
     data2[i] = internal::random<Scalar>() * Scalar(1e2);
   }
+
+  CHECK_CWISE1_IF(PacketTraits::HasAbs, numext::abs, internal::pabs);
+  CHECK_CWISE1_IF(PacketTraits::HasAbs2, numext::abs2, internal::pabs2);
 
   test_conj_helper<Scalar, Packet, false, false>(data1, data2, ref, pval);
   test_conj_helper<Scalar, Packet, false, true>(data1, data2, ref, pval);

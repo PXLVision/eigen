@@ -51,7 +51,7 @@ struct functor_traits<scalar_abs_op<Scalar> >
 {
   enum {
     Cost = NumTraits<Scalar>::AddCost,
-    PacketAccess = packet_traits<Scalar>::HasAbs
+    PacketAccess = packet_traits<Scalar>::HasAbs && !NumTraits<Scalar>::IsComplex
   };
 };
 
@@ -99,7 +99,12 @@ template<typename Scalar> struct scalar_abs2_op {
 };
 template<typename Scalar>
 struct functor_traits<scalar_abs2_op<Scalar> >
-{ enum { Cost = NumTraits<Scalar>::MulCost, PacketAccess = packet_traits<Scalar>::HasAbs2 }; };
+{
+  enum {
+    Cost = NumTraits<Scalar>::MulCost,
+    PacketAccess = packet_traits<Scalar>::HasMul && !NumTraits<Scalar>::IsComplex
+  };
+};
 
 /** \internal
   * \brief Template functor to compute the conjugate of a complex value

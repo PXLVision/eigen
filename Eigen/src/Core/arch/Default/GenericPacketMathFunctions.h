@@ -135,7 +135,7 @@ Packet pldexp_generic(const Packet& a, const Packet& exponent) {
 // Explicitly multiplies 
 //    a * (2^e)
 // clamping e to the range
-// [numeric_limits<Scalar>::min_exponent-2, numeric_limits<Scalar>::max_exponent]
+// [NumTraits<Scalar>::min_exponent()-2, NumTraits<Scalar>::max_exponent()]
 //
 // This is approx 7x faster than pldexp_impl, but will prematurely over/underflow
 // if 2^e doesn't fit into a normal floating-point Scalar.
@@ -630,14 +630,6 @@ __attribute__((optimize("-fno-unsafe-math-optimizations")))
 #endif
 Packet psincos_float(const Packet& _x)
 {
-// Workaround -ffast-math aggressive optimizations
-// See bug 1674
-#if EIGEN_COMP_CLANG && defined(EIGEN_VECTORIZE_SSE)
-#define EIGEN_SINCOS_DONT_OPT(X) __asm__  ("" : "+x" (X));
-#else
-#define EIGEN_SINCOS_DONT_OPT(X)
-#endif
-
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
 
   const Packet  cst_2oPI            = pset1<Packet>(0.636619746685028076171875f); // 2/PI
@@ -652,7 +644,7 @@ Packet psincos_float(const Packet& _x)
 
   // Rounding trick:
   Packet y_round = padd(y, cst_rounding_magic);
-  EIGEN_SINCOS_DONT_OPT(y_round)
+  EIGEN_OPTIMIZATION_BARRIER(y_round)
   PacketI y_int = preinterpret<PacketI>(y_round); // last 23 digits represent integer (if abs(x)<2^24)
   y = psub(y_round, cst_rounding_magic); // nearest integer to x*4/pi
 
@@ -674,9 +666,9 @@ Packet psincos_float(const Packet& _x)
   // and 2 ULP up to:
   const float huge_th = ComputeSine ? 25966.f : 18838.f;
   x = pmadd(y, pset1<Packet>(-1.5703125), x); // = 0xbfc90000
-  EIGEN_SINCOS_DONT_OPT(x)
+  EIGEN_OPTIMIZATION_BARRIER(x)
   x = pmadd(y, pset1<Packet>(-0.000483989715576171875), x); // = 0xb9fdc000
-  EIGEN_SINCOS_DONT_OPT(x)
+  EIGEN_OPTIMIZATION_BARRIER(x)
   x = pmadd(y, pset1<Packet>(1.62865035235881805419921875e-07), x); // = 0x342ee000
   x = pmadd(y, pset1<Packet>(5.5644315544167710640977020375430583953857421875e-11), x); // = 0x2e74b9ee
 
@@ -753,8 +745,6 @@ Packet psincos_float(const Packet& _x)
 
   // Update the sign and filter huge inputs
   return pxor(y, sign_bit);
-
-#undef EIGEN_SINCOS_DONT_OPT
 }
 
 template<typename Packet>
@@ -1490,8 +1480,8 @@ Packet generic_pow(const Packet& x, const Packet& y) {
   const Packet y_is_nan = pandnot(ptrue(y), pcmp_eq(y, y));
   const Packet abs_y_is_inf = pcmp_eq(pabs(y), cst_pos_inf);
   EIGEN_CONSTEXPR Scalar huge_exponent =
-      (std::numeric_limits<Scalar>::max_exponent * Scalar(EIGEN_LN2)) /
-      std::numeric_limits<Scalar>::epsilon();
+      (NumTraits<Scalar>::max_exponent() * Scalar(EIGEN_LN2)) /
+       NumTraits<Scalar>::epsilon();
   const Packet abs_y_is_huge = pcmp_le(pset1<Packet>(huge_exponent), pabs(y));
 
   // Predicates for whether y is integer and/or even.

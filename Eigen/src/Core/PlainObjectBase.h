@@ -13,10 +13,10 @@
 
 #if defined(EIGEN_INITIALIZE_MATRICES_BY_ZERO)
 # define EIGEN_INITIALIZE_COEFFS
-# define EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED for(int i=0;i<base().size();++i) coeffRef(i)=Scalar(0);
+# define EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED for(Index i=0;i<base().size();++i) coeffRef(i)=Scalar(0);
 #elif defined(EIGEN_INITIALIZE_MATRICES_BY_NAN)
 # define EIGEN_INITIALIZE_COEFFS
-# define EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED for(int i=0;i<base().size();++i) coeffRef(i)=std::numeric_limits<Scalar>::quiet_NaN();
+# define EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED for(Index i=0;i<base().size();++i) coeffRef(i)=std::numeric_limits<Scalar>::quiet_NaN();
 #else
 # undef EIGEN_INITIALIZE_COEFFS
 # define EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED
@@ -118,16 +118,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     using Base::IsVectorAtCompileTime;
     using Base::Flags;
 
-    template<typename PlainObjectType, int MapOptions, typename StrideType> friend class Eigen::Map;
-    friend  class Eigen::Map<Derived, Unaligned>;
     typedef Eigen::Map<Derived, Unaligned>  MapType;
-    friend  class Eigen::Map<const Derived, Unaligned>;
     typedef const Eigen::Map<const Derived, Unaligned> ConstMapType;
-#if EIGEN_MAX_ALIGN_BYTES>0
-    // for EIGEN_MAX_ALIGN_BYTES==0, AlignedMax==Unaligned, and many compilers generate warnings for friend-ing a class twice.
-    friend  class Eigen::Map<Derived, AlignedMax>;
-    friend  class Eigen::Map<const Derived, AlignedMax>;
-#endif
     typedef Eigen::Map<Derived, AlignedMax> AlignedMapType;
     typedef const Eigen::Map<const Derived, AlignedMax> ConstAlignedMapType;
     template<typename StrideType> struct StridedMapType { typedef Eigen::Map<Derived, Unaligned, StrideType> type; };
@@ -147,10 +139,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     const Base& base() const { return *static_cast<const Base*>(this); }
 
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Index rows() const { return m_storage.rows(); }
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Index cols() const { return m_storage.cols(); }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
+    Index rows() const EIGEN_NOEXCEPT { return m_storage.rows(); }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
+    Index cols() const EIGEN_NOEXCEPT { return m_storage.cols(); }
 
     /** This is an overloaded version of DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index,Index) const
       * provided to by-pass the creation of an evaluator of the expression, thus saving compilation efforts.
@@ -508,8 +500,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     PlainObjectBase& operator=(PlainObjectBase&& other) EIGEN_NOEXCEPT
     {
-      using std::swap;
-      swap(m_storage, other.m_storage);
+      _check_template_params();
+      m_storage = std::move(other.m_storage);
       return *this;
     }
 #endif
@@ -530,11 +522,11 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients. \cpp11
       *
       * \only_for_vectors
-      * 
+      *
       * This constructor is for 1D array or vectors with more than 4 coefficients.
       * There exists C++98 analogue constructors for fixed-size array/vector having 1, 2, 3, or 4 coefficients.
-      * 
-      * \warning To construct a column (resp. row) vector of fixed length, the number of values passed to this 
+      *
+      * \warning To construct a column (resp. row) vector of fixed length, the number of values passed to this
       * constructor must match the the fixed number of rows (resp. columns) of \c *this.
       */
     template <typename... ArgTypes>
@@ -548,7 +540,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       m_storage.data()[1] = a1;
       m_storage.data()[2] = a2;
       m_storage.data()[3] = a3;
-      int i = 4;
+      Index i = 4;
       auto x = {(m_storage.data()[i++] = args, 0)...};
       static_cast<void>(x);
     }
@@ -576,7 +568,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
         eigen_assert(list.size() == static_cast<size_t>(RowsAtCompileTime) || RowsAtCompileTime == Dynamic);
         eigen_assert(list_size == static_cast<size_t>(ColsAtCompileTime) || ColsAtCompileTime == Dynamic);
         resize(list.size(), list_size);
-       
+
         Index row_index = 0;
         for (const std::initializer_list<Scalar>& row : list) {
           eigen_assert(list_size == row.size());
@@ -988,6 +980,17 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     }
 
     enum { IsPlainObjectBase = 1 };
+#endif
+  public:
+    // These apparently need to be down here for nvcc+icc to prevent duplicate
+    // Map symbol.
+    template<typename PlainObjectType, int MapOptions, typename StrideType> friend class Eigen::Map;
+    friend class Eigen::Map<Derived, Unaligned>;
+    friend class Eigen::Map<const Derived, Unaligned>;
+#if EIGEN_MAX_ALIGN_BYTES>0
+    // for EIGEN_MAX_ALIGN_BYTES==0, AlignedMax==Unaligned, and many compilers generate warnings for friend-ing a class twice.
+    friend class Eigen::Map<Derived, AlignedMax>;
+    friend class Eigen::Map<const Derived, AlignedMax>;
 #endif
 };
 

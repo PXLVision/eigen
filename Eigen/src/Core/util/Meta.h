@@ -275,7 +275,7 @@ template<bool Condition, typename T=void> struct enable_if;
 template<typename T> struct enable_if<true,T>
 { typedef T type; };
 
-#if defined(EIGEN_GPU_COMPILE_PHASE)
+#if defined(EIGEN_GPU_COMPILE_PHASE) && !EIGEN_HAS_CXX11
 #if !defined(__FLT_EPSILON__)
 #define __FLT_EPSILON__ FLT_EPSILON
 #define __DBL_EPSILON__ DBL_EPSILON
@@ -286,7 +286,7 @@ namespace device {
 template<typename T> struct numeric_limits
 {
   EIGEN_DEVICE_FUNC
-  static T epsilon() { return 0; }
+  static EIGEN_CONSTEXPR T epsilon() { return 0; }
   static T (max)() { assert(false && "Highest not supported for this type"); }
   static T (min)() { assert(false && "Lowest not supported for this type"); }
   static T infinity() { assert(false && "Infinity not supported for this type"); }
@@ -294,7 +294,7 @@ template<typename T> struct numeric_limits
 };
 template<> struct numeric_limits<float>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static float epsilon() { return __FLT_EPSILON__; }
   EIGEN_DEVICE_FUNC
   static float (max)() {
@@ -304,7 +304,7 @@ template<> struct numeric_limits<float>
     return HIPRT_MAX_NORMAL_F;
   #endif
   }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static float (min)() { return FLT_MIN; }
   EIGEN_DEVICE_FUNC
   static float infinity() {
@@ -325,11 +325,11 @@ template<> struct numeric_limits<float>
 };
 template<> struct numeric_limits<double>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static double epsilon() { return __DBL_EPSILON__; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static double (max)() { return DBL_MAX; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static double (min)() { return DBL_MIN; }
   EIGEN_DEVICE_FUNC
   static double infinity() {
@@ -350,71 +350,71 @@ template<> struct numeric_limits<double>
 };
 template<> struct numeric_limits<int>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static int epsilon() { return 0; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static int (max)() { return INT_MAX; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static int (min)() { return INT_MIN; }
 };
 template<> struct numeric_limits<unsigned int>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned int epsilon() { return 0; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned int (max)() { return UINT_MAX; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned int (min)() { return 0; }
 };
 template<> struct numeric_limits<long>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static long epsilon() { return 0; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static long (max)() { return LONG_MAX; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static long (min)() { return LONG_MIN; }
 };
 template<> struct numeric_limits<unsigned long>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned long epsilon() { return 0; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned long (max)() { return ULONG_MAX; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned long (min)() { return 0; }
 };
 template<> struct numeric_limits<long long>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static long long epsilon() { return 0; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static long long (max)() { return LLONG_MAX; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static long long (min)() { return LLONG_MIN; }
 };
 template<> struct numeric_limits<unsigned long long>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned long long epsilon() { return 0; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned long long (max)() { return ULLONG_MAX; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static unsigned long long (min)() { return 0; }
 };
 template<> struct numeric_limits<bool>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static bool epsilon() { return false; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static bool (max)() { return true; }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR 
   static bool (min)() { return false; }
 };
 
 }
 
-#endif
+#endif // defined(EIGEN_GPU_COMPILE_PHASE) && !EIGEN_HAS_CXX11
 
 /** \internal
   * A base class do disable default copy ctor and copy assignment operator.
@@ -476,10 +476,10 @@ template<typename T, std::size_t N> struct array_size<std::array<T,N> > {
   *
   */
 template<typename T>
-Index size(const T& x) { return x.size(); }
+EIGEN_CONSTEXPR Index size(const T& x) { return x.size(); }
 
 template<typename T,std::size_t N>
-Index size(const T (&) [N]) { return N; }
+EIGEN_CONSTEXPR Index size(const T (&) [N]) { return N; }
 
 /** \internal
   * Convenient struct to get the result type of a nullary, unary, binary, or
@@ -761,7 +761,7 @@ template<typename T> EIGEN_DEVICE_FUNC   void swap(T &a, T &b) { T tmp = b; b = 
 template<typename T> EIGEN_STRONG_INLINE void swap(T &a, T &b) { std::swap(a,b); }
 #endif
 
-#if defined(EIGEN_GPU_COMPILE_PHASE)
+#if defined(EIGEN_GPU_COMPILE_PHASE) && !EIGEN_HAS_CXX11
 using internal::device::numeric_limits;
 #else
 using std::numeric_limits;

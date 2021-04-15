@@ -214,12 +214,12 @@ struct imag_ref_default_impl
 template<typename Scalar>
 struct imag_ref_default_impl<Scalar, false>
 {
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static inline Scalar run(Scalar&)
   {
     return Scalar(0);
   }
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static inline const Scalar run(const Scalar&)
   {
     return Scalar(0);
@@ -476,31 +476,59 @@ inline NewType cast(const OldType& x)
 * Implementation of round                                                   *
 ****************************************************************************/
 
-#if EIGEN_HAS_CXX11_MATH
-  template<typename Scalar>
-  struct round_impl {
-    EIGEN_DEVICE_FUNC
-    static inline Scalar run(const Scalar& x)
-    {
-      EIGEN_STATIC_ASSERT((!NumTraits<Scalar>::IsComplex), NUMERIC_TYPE_MUST_BE_REAL)
-      EIGEN_USING_STD(round);
-      return Scalar(round(x));
-    }
-  };
-#else
-  template<typename Scalar>
-  struct round_impl
+template<typename Scalar>
+struct round_impl
+{
+  EIGEN_DEVICE_FUNC
+  static inline Scalar run(const Scalar& x)
   {
-    EIGEN_DEVICE_FUNC
-    static inline Scalar run(const Scalar& x)
-    {
-      EIGEN_STATIC_ASSERT((!NumTraits<Scalar>::IsComplex), NUMERIC_TYPE_MUST_BE_REAL)
-      EIGEN_USING_STD(floor);
-      EIGEN_USING_STD(ceil);
-      return (x > Scalar(0)) ? floor(x + Scalar(0.5)) : ceil(x - Scalar(0.5));
-    }
-  };
+    EIGEN_STATIC_ASSERT((!NumTraits<Scalar>::IsComplex), NUMERIC_TYPE_MUST_BE_REAL)
+#if EIGEN_HAS_CXX11_MATH
+    EIGEN_USING_STD(round);
 #endif
+    return Scalar(round(x));
+  }
+};
+
+#if !EIGEN_HAS_CXX11_MATH
+#if EIGEN_HAS_C99_MATH
+// Use ::roundf for float.
+template<>
+struct round_impl<float> {
+  EIGEN_DEVICE_FUNC
+  static inline float run(const float& x)
+  {
+    return ::roundf(x);
+  }
+};
+#else
+template<typename Scalar>
+struct round_using_floor_ceil_impl
+{
+  EIGEN_DEVICE_FUNC
+  static inline Scalar run(const Scalar& x)
+  {
+    EIGEN_STATIC_ASSERT((!NumTraits<Scalar>::IsComplex), NUMERIC_TYPE_MUST_BE_REAL)
+    // Without C99 round/roundf, resort to floor/ceil.
+    EIGEN_USING_STD(floor);
+    EIGEN_USING_STD(ceil);
+    // If not enough precision to resolve a decimal at all, return the input.
+    // Otherwise, adding 0.5 can trigger an increment by 1.
+    const Scalar limit = Scalar(1ull << (NumTraits<Scalar>::digits() - 1));
+    if (x >= limit || x <= -limit) {
+      return x;
+    }
+    return (x > Scalar(0)) ? Scalar(floor(x + Scalar(0.5))) : Scalar(ceil(x - Scalar(0.5)));
+  }
+};
+
+template<>
+struct round_impl<float> : round_using_floor_ceil_impl<float> {};
+
+template<>
+struct round_impl<double> : round_using_floor_ceil_impl<double> {};
+#endif // EIGEN_HAS_C99_MATH
+#endif // !EIGEN_HAS_CXX11_MATH
 
 template<typename Scalar>
 struct round_retval

@@ -1801,7 +1801,7 @@ Tensors can be printed into a stream object (e.g. `std::cout`) using different f
 
 	Eigen::Tensor<float, 3> a = {4, 3, 2};
 	tensor3d.setValues( {{{1, 2}, {3, 4}, {5, 6}}, {{7, 8}, {9, 10}, {11, 12}}, {{13, 14}, {15, 16}, {17, 18}}, {{19, 20}, {21, 22}, {23, 24}}} );
-	std::cout << a.format(Eigen::IOFormats::Eigen) << std::endl;
+	std::cout << a.format(Eigen::IOFormats::Plain) << std::endl;
 	==>
 	1  2 
 	3  4 
@@ -1820,7 +1820,8 @@ Tensors can be printed into a stream object (e.g. `std::cout`) using different f
 	23 24
 
 
-In the example, we used one of the predefined formats. Other predefined formats are 
+In the example, we used the predefined format `Eigen::IOFormats::Plain`. Here is the list of all predefined formats from which you can choose:
+- `Eigen::IOFormats::Plain` for a plain output without braces. Different submatrices are separated by a blank line.
 - `Eigen::IOFormats::Numpy` for numpy-like output.
 - `Eigen::IOFormats::Native` for a `c++` like output which can be directly copy-pasted to setValues().
 - `Eigen::IOFormats::Short` for a stream like output.

@@ -66,7 +66,7 @@ struct TensorIOFormat
     int precision;
     int flags;
     std::vector<std::string> spacer{};
-    bool LEGACY_BIT = false;
+    bool legacy_bit = false;
 };
 
 namespace internal {
@@ -83,12 +83,12 @@ namespace internal {
       return ShortFormat;
     }
 
-    TensorIOFormat gen_eigen_format() {
+    TensorIOFormat gen_plain_format() {
       std::vector<std::string> separator = {" ", "\n", "\n", ""};
       std::vector<std::string> prefix = {""};
       std::vector<std::string> suffix = {""};
       
-      TensorIOFormat EigenFormat(separator, prefix, suffix, StreamPrecision, 0, "" , "", ' ');
+      TensorIOFormat PlainFormat(separator, prefix, suffix, StreamPrecision, 0, "" , "", ' ');
       return EigenFormat;
     }
 
@@ -102,18 +102,18 @@ namespace internal {
     }
 
     TensorIOFormat gen_legacy_format() {
-      TensorIOFormat LegacyFormat(StreamPrecision, 0, "" , "", ' ');
-      LegacyFormat.LEGACY_BIT = true;
+      TensorIOFormat LegacyFormat(StreamPrecision, 0, "", "", ' ');
+      LegacyFormat.legacy_bit = true;
       return LegacyFormat;
     }
-}
+} // namespace internal
 
 namespace IOFormats {
     const TensorIOFormat Numpy = internal::gen_numpy_format();
 
     const TensorIOFormat Short = internal::gen_short_format();
 
-    const TensorIOFormat Eigen = internal::gen_eigen_format();
+    const TensorIOFormat Plain = internal::gen_plain_format();
 
     const TensorIOFormat Native = internal::gen_native_format();
 
@@ -210,7 +210,7 @@ struct TensorPrinter {
       typedef typename Tensor::Index Index;
       static const int layout = Tensor::Layout;
       // backwards compatibility case: print tensor after reshaping to matrix of size dim(0) x (dim(1)*dim(2)*...*dim(rank-1)).
-      if (fmt.LEGACY_BIT) {
+      if (fmt.legacy_bit) {
         const Index total_size = internal::array_prod(_t.dimensions());
         if (total_size > 0) {
           const Index first_dim = Eigen::internal::array_get<0>(_t.dimensions());
@@ -219,10 +219,10 @@ struct TensorPrinter {
           return;
         }
       }
-                
+
       assert(layout == RowMajor);
       //from here on we have a tensor in RowMajor storage
-      
+
       typedef typename
         conditional<
           is_same<Scalar, char>::value ||
@@ -248,7 +248,7 @@ struct TensorPrinter {
         }
         else if(fmt.precision == FullPrecision) {
           if (NumTraits<Scalar>::IsInteger) {
-              explicit_precision = 0;
+            explicit_precision = 0;
           }
           else {
             explicit_precision = significant_decimals_impl<Scalar>::run();
@@ -275,61 +275,61 @@ struct TensorPrinter {
         }
         std::streamsize old_width = s.width();
         char old_fill_character = s.fill();
-                
+
         s << fmt.tenPrefix;
         for (Index i = 0; i<total_size; i++) {
-          std::array<bool, rank> IS_AT_END{};
-          std::array<bool, rank> IS_AT_BEGIN{};
+          std::array<bool, rank> is_at_end{};
+          std::array<bool, rank> is_at_begin{};
 
           //is the ith element the end of an coeff (always true), of a row, of a matrix, ...?
           for (std::size_t k=0; k<rank; k++) {
             if ((i+1) % (std::accumulate(_t.dimensions().rbegin(), _t.dimensions().rbegin()+k, 1, std::multiplies<Index>())) == 0) {
-              IS_AT_END[k] = true;
+              is_at_end[k] = true;
             }
           }
 
           //is the ith element the begin of an coeff (always true), of a row, of a matrix, ...?
           for (std::size_t k=0; k<rank; k++) {
             if (i % (std::accumulate(_t.dimensions().rbegin(), _t.dimensions().rbegin()+k, 1, std::multiplies<Index>())) == 0) {
-              IS_AT_BEGIN[k] = true;
+              is_at_begin[k] = true;
             }
           }
 
           //do we have a line break?
-          bool IS_AT_BEGIN_AFTER_NEWLINE=false;
+          bool is_at_begin_after_newline = false;
           for (std::size_t k=0; k<rank; k++) {
-            if (IS_AT_BEGIN[k]) {
+            if (is_at_begin[k]) {
               std::size_t separator_index = (k<fmt.separator.size()) ? k : fmt.separator.size()-1;
-              if(fmt.separator[separator_index].find('\n') != std::string::npos) {IS_AT_BEGIN_AFTER_NEWLINE=true;}
+              if(fmt.separator[separator_index].find('\n') != std::string::npos) { is_at_begin_after_newline = true; }
             }
           }
 
-          bool IS_AT_END_BEFORE_NEWLINE=false;
+          bool is_at_end_before_newline = false;
           for (std::size_t k=0; k<rank; k++) {
-            if (IS_AT_END[k]) {
+            if (is_at_end[k]) {
               std::size_t separator_index = (k<fmt.separator.size()) ? k : fmt.separator.size()-1;
-              if(fmt.separator[separator_index].find('\n') != std::string::npos) {IS_AT_END_BEFORE_NEWLINE=true;}
+              if(fmt.separator[separator_index].find('\n') != std::string::npos) { is_at_end_before_newline = true; }
             }
           }
 
           std::stringstream suffix, prefix, separator;
           for (std::size_t k=0; k<rank; k++) {
             std::size_t suffix_index = (k < fmt.suffix.size()) ? k : fmt.suffix.size()-1;
-            if (IS_AT_END[k]) {suffix << fmt.suffix[suffix_index];}
+            if (is_at_end[k]) {suffix << fmt.suffix[suffix_index];}
           }
           for (std::size_t k=0; k<rank; k++) {
             std::size_t separator_index = (k < fmt.separator.size()) ? k : fmt.separator.size()-1;
-            if (IS_AT_END[k] and (!IS_AT_END_BEFORE_NEWLINE or fmt.separator[separator_index].find('\n') != std::string::npos)) {separator << fmt.separator[separator_index]; }
+            if (is_at_end[k] and (!is_at_end_before_newline or fmt.separator[separator_index].find('\n') != std::string::npos)) {separator << fmt.separator[separator_index];}
           }
           for (std::size_t k=0; k<rank; k++) {
             std::size_t spacer_index = (k < fmt.spacer.size()) ? k : fmt.spacer.size()-1;
-            if (i!=0 and IS_AT_BEGIN_AFTER_NEWLINE and (!IS_AT_BEGIN[k] or k==0)) {prefix << fmt.spacer[spacer_index];}
+            if (i!=0 and is_at_begin_after_newline and (!is_at_begin[k] or k==0)) {prefix << fmt.spacer[spacer_index];}
           }
           for (int k=rank-1; k>=0; k--) {
             std::size_t prefix_index = (static_cast<std::size_t>(k) < fmt.prefix.size()) ? k : fmt.prefix.size()-1;
-            if (IS_AT_BEGIN[k]) {prefix << fmt.prefix[prefix_index];}
+            if (is_at_begin[k]) {prefix << fmt.prefix[prefix_index];}
           }
-                        
+
           s << prefix.str();
           if(width) {
             s.fill(fmt.fill);

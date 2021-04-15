@@ -39,8 +39,8 @@ template<> struct packet_traits<std::complex<float> >  : default_packet_traits
     HasDiv    = 1,
     HasNegate = 1,
     HasSqrt   = 1,
-    HasAbs    = 0,
-    HasAbs2   = 0,
+    HasAbs    = 1,
+    HasAbs2   = 1,
     HasMin    = 0,
     HasMax    = 0,
     HasSetLinear = 0
@@ -79,6 +79,18 @@ template<> EIGEN_STRONG_INLINE Packet4cf pmul<Packet4cf>(const Packet4cf& a, con
   __m256 tmp2 = _mm256_mul_ps(_mm256_movehdup_ps(a.v), _mm256_permute_ps(b.v, _MM_SHUFFLE(2,3,0,1)));
   __m256 result = _mm256_addsub_ps(tmp1, tmp2);
   return Packet4cf(result);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4cf pabs2<Packet4cf>(const Packet4cf& a)
+{
+  const Packet8f tmp  = pmul(a.v, a.v);
+  const Packet8f tmp2 = _mm256_castsi256_ps(_mm256_shuffle_epi32(_mm256_castps_si256(tmp), 0xB1));
+  return Packet4cf(pand(padd(tmp, tmp2), peven_mask(tmp)));
+}
+
+template<> EIGEN_STRONG_INLINE Packet4cf pabs<Packet4cf>(const Packet4cf& a)
+{
+  return Packet4cf(psqrt<Packet8f>(pabs2<Packet4cf>(a).v));
 }
 
 template <>
@@ -241,8 +253,8 @@ template<> struct packet_traits<std::complex<double> >  : default_packet_traits
     HasDiv    = 1,
     HasNegate = 1,
     HasSqrt   = 1,
-    HasAbs    = 0,
-    HasAbs2   = 0,
+    HasAbs    = 1,
+    HasAbs2   = 1,
     HasMin    = 0,
     HasMax    = 0,
     HasSetLinear = 0
@@ -270,6 +282,17 @@ template<> EIGEN_STRONG_INLINE Packet2cd pconj(const Packet2cd& a)
 {
   const __m256d mask = _mm256_castsi256_pd(_mm256_set_epi32(0x80000000,0x0,0x0,0x0,0x80000000,0x0,0x0,0x0));
   return Packet2cd(_mm256_xor_pd(a.v,mask));
+}
+
+template<> EIGEN_STRONG_INLINE Packet2cd pabs2<Packet2cd>(const Packet2cd& a)
+{
+  const Packet4d tmp  = pmul(a.v, a.v);
+  return Packet2cd(pand(padd(tmp, _mm256_permute_pd(tmp, 0x5)), peven_mask(a.v)));
+}
+
+template<> EIGEN_STRONG_INLINE Packet2cd pabs<Packet2cd>(const Packet2cd& a)
+{
+  return Packet2cd(psqrt<Packet4d>(pabs2<Packet2cd>(a).v));
 }
 
 template<> EIGEN_STRONG_INLINE Packet2cd pmul<Packet2cd>(const Packet2cd& a, const Packet2cd& b)

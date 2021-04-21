@@ -39,11 +39,11 @@ public :
   static void free_vector(gene_vector & /*B*/) {}
 
   static BTL_DONT_INLINE void matrix_from_stl(gene_matrix & A, stl_matrix & A_stl){
-    A.resize(Eigen::array<Index,2>(A_stl[0].size(), A_stl.size()));
+    A.resize(Eigen::array<Index,2>{A_stl[0].size(), A_stl.size()});
 
     for (unsigned int j=0; j<A_stl.size() ; j++){
       for (unsigned int i=0; i<A_stl[j].size() ; i++){
-        A.coeffRef(Eigen::array<Index,2>(i,j)) = A_stl[j][i];
+        A.coeffRef(Eigen::array<Index,2>{i,j}) = A_stl[j][i];
       }
     }
   }
@@ -68,20 +68,20 @@ public :
     for (int j=0;j<N;j++){
       A_stl[j].resize(N);
       for (int i=0;i<N;i++){
-        A_stl[j][i] = A.coeff(Eigen::array<Index,2>(i,j));
+        A_stl[j][i] = A.coeff(Eigen::array<Index,2>{i,j});
       }
     }
   }
 
   static inline void matrix_matrix_product(const gene_matrix & A, const gene_matrix & B, gene_matrix & X, int  /*N*/){
     typedef typename Eigen::Tensor<real_type, 1>::DimensionPair DimPair;
-    const Eigen::array<DimPair, 1> dims(DimPair(1, 0));
+    const Eigen::array<DimPair, 1> dims{DimPair(1, 0)};
     X/*.noalias()*/ = A.contract(B, dims);
   }
 
   static inline void matrix_vector_product(const gene_matrix & A, const gene_vector & B, gene_vector & X, int  /*N*/){
     typedef typename Eigen::Tensor<real_type, 1>::DimensionPair DimPair;
-    const Eigen::array<DimPair, 1> dims(DimPair(1, 0));
+    const Eigen::array<DimPair, 1> dims{DimPair(1, 0)};
     X/*.noalias()*/ = A.contract(B, dims);
   }
 

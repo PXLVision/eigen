@@ -70,6 +70,11 @@
 #include <cuda_fp16.h>
 #endif
 
+//  Include sycl before FORBIDDEN_IDENTIFIER, otherwise trisycl breaks.
+#if defined(EIGEN_USE_SYCL)
+#include <CL/sycl.hpp>
+#endif
+
 // To test that all calls from Eigen code to std::min() and std::max() are
 // protected by parenthesis against macro expansion, the min()/max() macros
 // are defined here and any not-parenthesized min/max call will cause a
@@ -292,12 +297,13 @@ namespace Eigen
     // see bug 89. The copy_bool here is working around a bug in gcc <= 4.3
     #define eigen_assert(a) \
       if( (!Eigen::internal::copy_bool(a)) && (!no_more_assert) )\
-      {                                       \
-        Eigen::no_more_assert = true;         \
-        if(report_on_cerr_on_assert_failure)  \
-          eigen_plain_assert(a);              \
-        else                                  \
+      {                                        \
+        Eigen::no_more_assert = true;          \
+        if(report_on_cerr_on_assert_failure) { \
+          eigen_plain_assert(a);               \
+        } else {                               \
           EIGEN_THROW_X(Eigen::eigen_assert_exception()); \
+        } \
       }
 
     #ifdef EIGEN_EXCEPTIONS

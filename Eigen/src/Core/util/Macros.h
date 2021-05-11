@@ -997,6 +997,11 @@
   #else
     #define eigen_plain_assert(x)
   #endif
+  namespace Eigen {
+  namespace internal {
+    inline bool copy_bool(bool b) { return b; }
+  }
+  }
 #else
   #if EIGEN_SAFE_TO_USE_STANDARD_ASSERT_MACRO
     namespace Eigen {

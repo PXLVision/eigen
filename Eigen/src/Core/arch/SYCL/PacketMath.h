@@ -127,10 +127,11 @@ ploadt(const Eigen::TensorSycl::internal::RangeAccess<
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE packet_type                    \
   ploadt_ro<packet_type, Alignment>(                                   \
       const typename unpacket_traits<packet_type>::type* from) {       \
-    typedef typename unpacket_traits<packet_type>::type scalar;        \
-    auto res = packet_type(static_cast<scalar>(0));                    \
-    res.template load<cl::sycl::access::address_space::private_space>( \
-        0, const_cast<scalar*>(from));                                 \
+    typedef typename unpacket_traits<packet_type>::type Scalar;        \
+    const auto space = cl::sycl::access::address_space::private_space; \
+    auto res = packet_type(static_cast<Scalar>(0));                    \
+    res.template load<space>(                                          \
+        0, cl::sycl::make_ptr<const Scalar, space>(from));             \
     return res;                                                        \
   }
 
@@ -143,10 +144,11 @@ SYCL_PLOADT_RO_SPECIAL(cl::sycl::cl_double2, Unaligned)
   template <>                                                              \
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE packet_type pload##alignment_type( \
       const typename unpacket_traits<packet_type>::type* from) {           \
-    typedef typename unpacket_traits<packet_type>::type scalar;            \
-    auto res = packet_type(static_cast<scalar>(0));                        \
-    res.template load<cl::sycl::access::address_space::private_space>(     \
-        0, const_cast<scalar*>(from));                                     \
+    typedef typename unpacket_traits<packet_type>::type Scalar;            \
+    const auto space = cl::sycl::access::address_space::private_space;     \
+    auto res = packet_type(static_cast<Scalar>(0));                        \
+    res.template load<space>(                                              \
+        0, cl::sycl::make_ptr<const Scalar, space>(from));                 \
     return res;                                                            \
   }
 SYCL_PLOAD_SPECIAL(cl::sycl::cl_float4, )
@@ -160,7 +162,7 @@ SYCL_PLOAD_SPECIAL(cl::sycl::cl_double2, u)
   template <>                                                               \
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstore##alignment(             \
       typename cl::sycl::multi_ptr<                                         \
-          scalar,                                                           \
+          typename unpacket_traits<packet_type>::type,                      \
           cl::sycl::access::address_space::address_space_target>::pointer_t \
           to,                                                               \
       const packet_type& from) {                                            \
@@ -179,11 +181,22 @@ SYCL_PSTORE(float, cl::sycl::cl_float4, local_space, )
 SYCL_PSTORE(float, cl::sycl::cl_float4, local_space, u)
 SYCL_PSTORE(double, cl::sycl::cl_double2, local_space, )
 SYCL_PSTORE(double, cl::sycl::cl_double2, local_space, u)
+#undef SYCL_PSTORE
 
-SYCL_PSTORE(float, cl::sycl::cl_float4, private_space, )
-SYCL_PSTORE(float, cl::sycl::cl_float4, private_space, u)
-SYCL_PSTORE(double, cl::sycl::cl_double2, private_space, )
-SYCL_PSTORE(double, cl::sycl::cl_double2, private_space, u)
+#define SYCL_PSTORE(scalar, packet_type, alignment)   \
+  template <>                                                               \
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstore##alignment(             \
+      scalar* to, const packet_type& from) {                                \
+    typedef cl::sycl::multi_ptr<                                            \
+        scalar, cl::sycl::access::address_space::private_space>             \
+        multi_ptr;                                                          \
+    from.store(0, multi_ptr(to));                                           \
+  }
+
+SYCL_PSTORE(float, cl::sycl::cl_float4, )
+SYCL_PSTORE(float, cl::sycl::cl_float4, u)
+SYCL_PSTORE(double, cl::sycl::cl_double2, )
+SYCL_PSTORE(double, cl::sycl::cl_double2, u)
 #undef SYCL_PSTORE
 
 #define SYCL_PSTORE_T(address_space_target)                                 \
@@ -489,6 +502,14 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet sycl_pcmp_lt(const Packet &a,
 }
 
 template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet sycl_pcmp_lt_or_nan(
+    const Packet &a, const Packet &b) {
+  return ((a < b)
+              .template convert<typename unpacket_traits<Packet>::type,
+                                cl::sycl::rounding_mode::automatic>());
+}
+
+template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet sycl_pcmp_eq(const Packet &a,
                                                           const Packet &b) {
   return ((a == b)
@@ -505,9 +526,11 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet sycl_pcmp_eq(const Packet &a,
 
 SYCL_PCMP(le, cl::sycl::cl_float4)
 SYCL_PCMP(lt, cl::sycl::cl_float4)
+SYCL_PCMP(lt_or_nan, cl::sycl::cl_float4)
 SYCL_PCMP(eq, cl::sycl::cl_float4)
 SYCL_PCMP(le, cl::sycl::cl_double2)
 SYCL_PCMP(lt, cl::sycl::cl_double2)
+SYCL_PCMP(lt_or_nan, cl::sycl::cl_double2)
 SYCL_PCMP(eq, cl::sycl::cl_double2)
 #undef SYCL_PCMP
 

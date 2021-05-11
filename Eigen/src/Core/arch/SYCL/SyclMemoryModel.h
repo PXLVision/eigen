@@ -137,9 +137,10 @@ class PointerMapper {
     return (static_cast<void *>(ptr) == nullptr);
   }
 
-  /* basic type for all buffers
+  /**
+   *  basic type for all buffers
    */
-  using buffer_t = cl::sycl::buffer_mem;
+  using buffer_t = cl::sycl::buffer<buffer_data_type_t, 1>;
 
   /**
    * Node that stores information about a device allocation.
@@ -232,20 +233,28 @@ class PointerMapper {
   /* get_buffer.
    * Returns a buffer from the map using the pointer address
    */
-  template <typename buffer_data_type = buffer_data_type_t>
-  cl::sycl::buffer<buffer_data_type, 1> get_buffer(
-      const virtual_pointer_t ptr) {
-    using sycl_buffer_t = cl::sycl::buffer<buffer_data_type, 1>;
-
-    // get_node() returns a `buffer_mem`, so we need to cast it to a `buffer<>`.
-    // We can do this without the `buffer_mem` being a pointer, as we
-    // only declare member variables in the base class (`buffer_mem`) and not in
-    // the child class (`buffer<>).
+  template <typename buffer_data_type = buffer_data_type_t,
+            typename enable_if = typename Eigen::internal::enable_if<
+                                            Eigen::internal::is_same<buffer_data_type, buffer_data_type_t>::value
+                                          >::type >
+  cl::sycl::buffer<buffer_data_type_t, 1> get_buffer(const virtual_pointer_t ptr) {
     auto node = get_node(ptr);
     eigen_assert(node->first == ptr || node->first < ptr);
     eigen_assert(ptr < static_cast<virtual_pointer_t>(node->second.m_size +
                                                       node->first));
-    return *(static_cast<sycl_buffer_t *>(&node->second.m_buffer));
+    return node->second.m_buffer;
+  }
+  
+  template <typename buffer_data_type = buffer_data_type_t,
+            typename enable_if = typename Eigen::internal::enable_if<
+                                            !Eigen::internal::is_same<buffer_data_type, buffer_data_type_t>::value
+                                          >::type>
+  cl::sycl::buffer<buffer_data_type, 1> get_buffer(const virtual_pointer_t ptr) {
+    auto original_buffer = get_buffer<buffer_data_type_t>(ptr);
+    const auto typed_size = original_buffer.get_size() * sizeof(buffer_data_type_t) / sizeof(buffer_data_type);
+    return original_buffer.template reinterpret<
+          typename Eigen::internal::remove_const<buffer_data_type>::type
+        >(cl::sycl::range<1>(typed_size));
   }
 
   /**

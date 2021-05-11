@@ -228,8 +228,8 @@ struct packetmath_pcast_ops_runner {
     test_cast_runner<Packet, bool>::run();
     test_cast_runner<Packet, std::complex<float> >::run();
     test_cast_runner<Packet, std::complex<double> >::run();
-    test_cast_runner<Packet, half>::run();
-    test_cast_runner<Packet, bfloat16>::run();
+    test_cast_runner<Packet, Eigen::half>::run();
+    test_cast_runner<Packet, Eigen::bfloat16>::run();
   }
 };
 
@@ -239,8 +239,8 @@ struct packetmath_pcast_ops_runner<Scalar, Packet, typename internal::enable_if<
   static void run() {
     test_cast_runner<Packet, std::complex<float> >::run();
     test_cast_runner<Packet, std::complex<double> >::run();
-    test_cast_runner<Packet, half>::run();
-    test_cast_runner<Packet, bfloat16>::run();
+    test_cast_runner<Packet, Eigen::half>::run();
+    test_cast_runner<Packet, Eigen::bfloat16>::run();
   }
 };
 
@@ -800,7 +800,7 @@ void packetmath_real() {
     h.store(data2, internal::pexp(h.load(data1)));
     VERIFY((numext::isnan)(data2[0]));
     // TODO(rmlarsen): Re-enable for bfloat16.
-    if (!internal::is_same<Scalar, bfloat16>::value) {
+    if (!internal::is_same<Scalar, Eigen::bfloat16>::value) {
       VERIFY_IS_APPROX(std::exp(small), data2[1]);
     }
 
@@ -808,7 +808,7 @@ void packetmath_real() {
     data1[1] = Scalar(0);
     h.store(data2, internal::pexp(h.load(data1)));
     // TODO(rmlarsen): Re-enable for bfloat16.
-    if (!internal::is_same<Scalar, bfloat16>::value) {
+    if (!internal::is_same<Scalar, Eigen::bfloat16>::value) {
       VERIFY_IS_APPROX(std::exp(-small), data2[0]);
     }
     VERIFY_IS_EQUAL(std::exp(Scalar(0)), data2[1]);
@@ -864,7 +864,7 @@ void packetmath_real() {
       h.store(data2, internal::plog(h.load(data1)));
       VERIFY((numext::isnan)(data2[0]));
       // TODO(cantonios): Re-enable for bfloat16.
-      if (!internal::is_same<Scalar, bfloat16>::value) {
+      if (!internal::is_same<Scalar, Eigen::bfloat16>::value) {
         VERIFY_IS_APPROX(std::log(data1[1]), data2[1]);
       }
 
@@ -878,7 +878,7 @@ void packetmath_real() {
       data1[1] = -(std::numeric_limits<Scalar>::min)();
       h.store(data2, internal::plog(h.load(data1)));
       // TODO(cantonios): Re-enable for bfloat16.
-      if (!internal::is_same<Scalar, bfloat16>::value) {
+      if (!internal::is_same<Scalar, Eigen::bfloat16>::value) {
         VERIFY_IS_APPROX(std::log((std::numeric_limits<Scalar>::min)()), data2[0]);
       }
       VERIFY((numext::isnan)(data2[1]));
@@ -925,8 +925,8 @@ void packetmath_real() {
     }
     // TODO(rmlarsen): Re-enable for half and bfloat16.
     if (PacketTraits::HasCos
-        && !internal::is_same<Scalar, half>::value
-        && !internal::is_same<Scalar, bfloat16>::value) {
+        && !internal::is_same<Scalar, Eigen::half>::value
+        && !internal::is_same<Scalar, Eigen::bfloat16>::value) {
       test::packet_helper<PacketTraits::HasCos, Packet> h;
       for (Scalar k = Scalar(1); k < Scalar(10000) / NumTraits<Scalar>::epsilon(); k *= Scalar(2)) {
         for (int k1 = 0; k1 <= 1; ++k1) {
@@ -1294,9 +1294,9 @@ EIGEN_DECLARE_TEST(packetmath) {
     CALL_SUBTEST_10(test::runner<uint64_t>::run());
     CALL_SUBTEST_11(test::runner<std::complex<float> >::run());
     CALL_SUBTEST_12(test::runner<std::complex<double> >::run());
-    CALL_SUBTEST_13(test::runner<half>::run());
+    CALL_SUBTEST_13(test::runner<Eigen::half>::run());
     CALL_SUBTEST_14((packetmath<bool, internal::packet_traits<bool>::type>()));
-    CALL_SUBTEST_15(test::runner<bfloat16>::run());
+    CALL_SUBTEST_15(test::runner<Eigen::bfloat16>::run());
     g_first_pass = false;
   }
 }

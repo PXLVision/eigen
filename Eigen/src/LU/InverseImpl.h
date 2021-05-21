@@ -304,10 +304,28 @@ struct Assignment<DstXprType, Inverse<XprType>, internal::assign_op<typename Dst
   EIGEN_DEVICE_FUNC
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename XprType::Scalar> &)
   {
-    Index dstRows = src.rows();
-    Index dstCols = src.cols();
-    if((dst.rows()!=dstRows) || (dst.cols()!=dstCols))
-      dst.resize(dstRows, dstCols);
+#if EIGEN_COMP_CXXVER >= 17
+    // Check the storage type at compile time and do not allow resizing fixed sizes (in case of size mismatch).
+    // This will prevent pushing calls for host only resize() in cuda kernels (and avoid computations at runtime
+    // with fixed sizes)
+    if constexpr (Eigen::internal::traits< XprType >::MaxRowsAtCompileTime == Eigen::Dynamic
+                  || Eigen::internal::traits< XprType >::MaxColsAtCompileTime == Eigen::Dynamic
+                  || Eigen::internal::traits< DstXprType >::MaxRowsAtCompileTime == Eigen::Dynamic
+                  || Eigen::internal::traits< DstXprType >::MaxColsAtCompileTime == Eigen::Dynamic) {
+#endif
+      Index dstRows = src.rows();
+      Index dstCols = src.cols();
+      if((dst.rows()!=dstRows) || (dst.cols()!=dstCols))
+        dst.resize(dstRows, dstCols);
+#if EIGEN_COMP_CXXVER >= 17
+    } else {
+      constexpr Index srcRows = Eigen::internal::traits< XprType >::RowsAtCompileTime;
+      constexpr Index srcCols = Eigen::internal::traits< XprType >::ColsAtCompileTime;
+      constexpr Index dstRows = Eigen::internal::traits< DstXprType >::RowsAtCompileTime;
+      constexpr Index dstCols = Eigen::internal::traits< DstXprType >::ColsAtCompileTime;
+      EIGEN_STATIC_ASSERT(((dstRows==srcRows) && (dstCols==srcCols)), YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES);
+    }
+#endif // C++17
     
     const int Size = EIGEN_PLAIN_ENUM_MIN(XprType::ColsAtCompileTime,DstXprType::ColsAtCompileTime);
     EIGEN_ONLY_USED_FOR_DEBUG(Size);

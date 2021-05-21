@@ -48,6 +48,7 @@ struct triangular_solve_matrix<EIGTYPE,Index,OnTheLeft,Mode,Conjugate,TriStorage
     IsZeroDiag  = (Mode&ZeroDiag) ? 1 : 0, \
     conjA = ((TriStorageOrder==ColMajor) && Conjugate) ? 1 : 0 \
   }; \
+  EIGEN_DEVICE_FUNC
   static void run( \
       Index size, Index otherSize, \
       const EIGTYPE* _tri, Index triStride, \
@@ -109,6 +110,7 @@ struct triangular_solve_matrix<EIGTYPE,Index,OnTheRight,Mode,Conjugate,TriStorag
     IsZeroDiag  = (Mode&ZeroDiag) ? 1 : 0, \
     conjA = ((TriStorageOrder==ColMajor) && Conjugate) ? 1 : 0 \
   }; \
+  EIGEN_DEVICE_FUNC
   static void run( \
       Index size, Index otherSize, \
       const EIGTYPE* _tri, Index triStride, \

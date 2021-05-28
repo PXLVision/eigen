@@ -1279,6 +1279,7 @@ struct lhs_process_one_packet
 {
   typedef typename GEBPTraits::RhsPacketx4 RhsPacketx4;
 
+  EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE void peeled_kc_onestep(Index K, const LhsScalar* blA, const RhsScalar* blB, GEBPTraits traits, LhsPacket *A0, RhsPacketx4 *rhs_panel, RhsPacket *T0, AccPacket *C0, AccPacket *C1, AccPacket *C2, AccPacket *C3)
   {
     EIGEN_ASM_COMMENT("begin step of gebp micro kernel 1X4");
@@ -1295,6 +1296,7 @@ struct lhs_process_one_packet
     EIGEN_ASM_COMMENT("end step of gebp micro kernel 1X4");
   }
 
+  EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE void operator()(
     const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB, ResScalar alpha,
     Index peelStart, Index peelEnd, Index strideA, Index strideB, Index offsetA, Index offsetB,

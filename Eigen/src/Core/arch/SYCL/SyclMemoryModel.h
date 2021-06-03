@@ -139,7 +139,7 @@ class PointerMapper {
 
   /* basic type for all buffers
    */
-  using buffer_t = cl::sycl::buffer_mem;
+  using buffer_t = cl::sycl::buffer<buffer_data_type_t>;
 
   /**
    * Node that stores information about a device allocation.
@@ -230,54 +230,17 @@ class PointerMapper {
   }
 
   /* get_buffer.
-   * Returns a buffer from the map using the pointer address
+   * Returns the root buffer from the map using the pointer address.  The start
+   * of the buffer does not necessarily correspond to the pointer address - see
+   *   get_offset(const virtual_pointer_t)
+   * to get the offset from the start of the returned buffer.
    */
-  template <typename buffer_data_type = buffer_data_type_t>
-  cl::sycl::buffer<buffer_data_type, 1> get_buffer(
-      const virtual_pointer_t ptr) {
-    using sycl_buffer_t = cl::sycl::buffer<buffer_data_type, 1>;
-
-    // get_node() returns a `buffer_mem`, so we need to cast it to a `buffer<>`.
-    // We can do this without the `buffer_mem` being a pointer, as we
-    // only declare member variables in the base class (`buffer_mem`) and not in
-    // the child class (`buffer<>).
+  buffer_t get_buffer(const virtual_pointer_t ptr) {
     auto node = get_node(ptr);
     eigen_assert(node->first == ptr || node->first < ptr);
     eigen_assert(ptr < static_cast<virtual_pointer_t>(node->second.m_size +
                                                       node->first));
-    return *(static_cast<sycl_buffer_t *>(&node->second.m_buffer));
-  }
-
-  /**
-   * @brief Returns an accessor to the buffer of the given virtual pointer
-   * @param accessMode
-   * @param accessTarget
-   * @param ptr The virtual pointer
-   */
-  template <sycl_acc_mode access_mode = default_acc_mode,
-            sycl_acc_target access_target = default_acc_target,
-            typename buffer_data_type = buffer_data_type_t>
-  cl::sycl::accessor<buffer_data_type, 1, access_mode, access_target>
-  get_access(const virtual_pointer_t ptr) {
-    auto buf = get_buffer<buffer_data_type>(ptr);
-    return buf.template get_access<access_mode, access_target>();
-  }
-
-  /**
-   * @brief Returns an accessor to the buffer of the given virtual pointer
-   *        in the given command group scope
-   * @param accessMode
-   * @param accessTarget
-   * @param ptr The virtual pointer
-   * @param cgh Reference to the command group scope
-   */
-  template <sycl_acc_mode access_mode = default_acc_mode,
-            sycl_acc_target access_target = default_acc_target,
-            typename buffer_data_type = buffer_data_type_t>
-  cl::sycl::accessor<buffer_data_type, 1, access_mode, access_target>
-  get_access(const virtual_pointer_t ptr, cl::sycl::handler &cgh) {
-    auto buf = get_buffer<buffer_data_type>(ptr);
-    return buf.template get_access<access_mode, access_target>(cgh);
+    return node->second.m_buffer;
   }
 
   /*
@@ -300,6 +263,41 @@ class PointerMapper {
   template <typename buffer_data_type>
   inline size_t get_element_offset(const virtual_pointer_t ptr) {
     return get_offset(ptr) / sizeof(buffer_data_type);
+  }
+
+  /* get_sub_buffer.
+   * Returns a typed buffer starting at a virtual pointer with a given count.
+   */
+  template <typename buffer_data_type = buffer_data_type_t,
+            typename enable_if = typename Eigen::internal::enable_if<Eigen::internal::is_same<buffer_data_type, buffer_data_type_t>::value>::type >
+  cl::sycl::buffer<buffer_data_type_t, 1> get_sub_buffer(
+      const virtual_pointer_t ptr, size_t count) {
+    const auto node = get_node(ptr);
+    const auto start = node->first;
+    eigen_assert(start == ptr || start < ptr);
+    eigen_assert(ptr < static_cast<virtual_pointer_t>(start + node->second.m_size));
+    const auto offset = (ptr - start);
+    const auto size = count * sizeof(buffer_data_type);
+    eigen_assert(size <= node->second.m_size);
+    std::cout << "Getting sub-buffer: " << count << std::endl;
+    
+    return cl::sycl::buffer<buffer_data_type, 1>(node->second.m_buffer,
+                                                 cl::sycl::id<1>(offset),
+                                                 cl::sycl::range<1>(count));
+  }
+  
+  /* get_sub_buffer.
+   * Returns a typed buffer starting at a virtual pointer with a given count.
+   */
+  template <typename buffer_data_type = buffer_data_type_t,
+            typename enable_if = typename Eigen::internal::enable_if<!Eigen::internal::is_same<buffer_data_type, buffer_data_type_t>::value>::type >
+  cl::sycl::buffer<buffer_data_type, 1> get_sub_buffer(
+      const virtual_pointer_t ptr, size_t count) {
+    size_t base_count = count * sizeof(buffer_data_type) / sizeof(buffer_data_type_t);
+    auto base = get_sub_buffer<buffer_data_type_t>(ptr, base_count);
+    auto out = base.reinterpret<buffer_data_type>(cl::sycl::range<1>(count));
+    std::cout << "Getting typed sub-buffer: " << out.get_count() << " vs " << out.get_size() << std::endl;
+    return out;
   }
 
   /**

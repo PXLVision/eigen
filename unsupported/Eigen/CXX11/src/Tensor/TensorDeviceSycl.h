@@ -139,19 +139,6 @@ class QueueInterface {
   EIGEN_STRONG_INLINE cl::sycl::program &program() const { return m_prog; }
 #endif
 
-  /// Attach an existing buffer to the pointer map, Eigen will not reuse it
-  EIGEN_STRONG_INLINE void *attach_buffer(
-      cl::sycl::buffer<buffer_scalar_t, 1> &buf) const {
-    std::lock_guard<std::mutex> lock(pmapper_mutex_);
-    return static_cast<void *>(pMapper.add_pointer(buf));
-  }
-
-  /// Detach previously attached buffer
-  EIGEN_STRONG_INLINE void detach_buffer(void *p) const {
-    std::lock_guard<std::mutex> lock(pmapper_mutex_);
-    TensorSycl::internal::SYCLfree<false>(p, pMapper);
-  }
-
   /// Allocating device pointer. This pointer is actually an 8 bytes host
   /// pointer used as key to access the sycl device buffer. The reason is that
   /// we cannot use device buffer as a pointer as a m_data in Eigen leafNode
@@ -258,9 +245,8 @@ class QueueInterface {
       if (callback) callback();
       return;
     }
-    n /= sizeof(buffer_scalar_t);
     auto f = [&](cl::sycl::handler &cgh) {
-      write_accessor dst_acc = get_range_accessor<write_mode, buffer_scalar_t>(cgh, dst, n);
+      write_accessor dst_acc = get_range_accessor<write_mode>(cgh, dst, n);
       buffer_scalar_t const *ptr = static_cast<buffer_scalar_t const *>(src);
       auto non_deleter = [](buffer_scalar_t const *) {};
       std::shared_ptr<const buffer_scalar_t> s_ptr(ptr, non_deleter);
@@ -286,9 +272,8 @@ class QueueInterface {
       if (callback) callback();
       return;
     }
-    n /= sizeof(buffer_scalar_t);
     auto f = [&](cl::sycl::handler &cgh) {
-      read_accessor src_acc = get_range_accessor<read_mode, buffer_scalar_t>(cgh, src, n);
+      read_accessor src_acc = get_range_accessor<read_mode>(cgh, src, n);
       buffer_scalar_t *ptr = static_cast<buffer_scalar_t *>(dst);
       auto non_deleter = [](buffer_scalar_t *) {};
       std::shared_ptr<buffer_scalar_t> s_ptr(ptr, non_deleter);
@@ -308,10 +293,10 @@ class QueueInterface {
     if (n == 0) {
       return;
     }
-    n /= sizeof(buffer_scalar_t);
+    
     auto f = [&](cl::sycl::handler &cgh) {
-      auto src_acc = get_range_accessor<read_mode, buffer_scalar_t>(cgh, src, n);
-      auto dst_acc = get_range_accessor<write_mode, buffer_scalar_t>(cgh, dst, n);
+      auto src_acc = get_range_accessor<read_mode>(cgh, src, n);
+      auto dst_acc = get_range_accessor<write_mode>(cgh, dst, n);
       cgh.copy(src_acc, dst_acc);
     };
     cl::sycl::event e;
@@ -327,120 +312,81 @@ class QueueInterface {
     if (n == 0) {
       return;
     }
-    n /= sizeof(buffer_scalar_t);
     auto f = [&](cl::sycl::handler &cgh) {
       // Get a typed range accesser to ensure we fill each byte, in case
       // `buffer_scalar_t` is not (u)int8_t.
-      auto dst_acc = get_range_accessor<write_mode, uint8_t>(cgh, data, n);
-      std::cout << "memset " << dst_acc.get_count() << ", " << n << std::endl;
+      auto dst_acc = get_typed_range_accessor<write_mode, uint8_t>(cgh, data, n);
       cgh.fill(dst_acc, static_cast<uint8_t>(c));
     };
     cl::sycl::event e;
     EIGEN_SYCL_TRY_CATCH(e = m_queue.submit(f));
     async_synchronize(e);
   }
+  
+  EIGEN_STRONG_INLINE cl::sycl::buffer<buffer_scalar_t, 1>&
+  get_buffer_and_offset(void* ptr, ptrdiff_t* offset) const {
+    std::lock_guard<std::mutex> lock(pmapper_mutex_);
+    *offset = pMapper.get_offset(ptr);
+    return pMapper.get_buffer(ptr);
+  }
 
   template<typename T>
   EIGEN_STRONG_INLINE void fill(T* begin, T* end, const T& value) const {
-    // static const auto write_mode = cl::sycl::access::mode::discard_write;
+    static const auto write_mode = cl::sycl::access::mode::discard_write;
+    static const auto read_mode = cl::sycl::access::mode::read;
     if (begin == end) {
       return;
     }
-    const size_t n = end - begin;
-    const size_t count = n / sizeof(T);
-    std::cout << "fill " << value << " x" << count << std::endl;
+    const size_t count = end - begin;
+    const size_t n_bytes = count * sizeof(T);
+
+    static const auto global_access = cl::sycl::access::target::global_buffer;
+ 
+    // setup test data using the initial buffer accessor
+    ptrdiff_t offset;
+    auto& buffer = get_buffer_and_offset(begin, &offset);
+    std::cout << "subbuffer? " << buffer.is_sub_buffer() << std::endl;
+    std::cout << "offset: " << offset << std::endl;
     
     {
-      std::lock_guard<std::mutex> lock(pmapper_mutex_);
-      auto buffer = pMapper.get_buffer(begin);
-      auto offset = pMapper.get_offset(begin);
-      std::cout << "offset: " << offset << std::endl;
-      std::cout << "size: " << n << std::endl;
-      auto subbuf = cl::sycl::buffer<buffer_scalar_t, 1>(buffer, cl::sycl::id<1>(offset), cl::sycl::range<1>(n));
-      auto reint = subbuf.template reinterpret<T>(cl::sycl::range<1>(count));
-      auto f = [&](cl::sycl::handler& cgh) {
-        auto acc = reint.template get_access<cl::sycl::access::mode::discard_write,
-                                             cl::sycl::access::target::global_buffer>(cgh);
-        cgh.fill(acc, value);
-        {
-          auto readacc = reint.template get_access<cl::sycl::access::mode::read,
-                                              cl::sycl::access::target::global_buffer>(cgh);
-          EIGEN_UNUSED_VARIABLE(readacc)
-        }
-        {
-          auto readacc = subbuf.template get_access<cl::sycl::access::mode::read,
-                                              cl::sycl::access::target::global_buffer>(cgh);
-          EIGEN_UNUSED_VARIABLE(readacc)
-        }
-      };
-      cl::sycl::event e;
-      EIGEN_SYCL_TRY_CATCH(e = m_queue.submit(f));
-      async_synchronize(e);
+      // Subbuf within scope so write-back triggered on destruction.
+      auto subbuf = cl::sycl::buffer<buffer_scalar_t, 1>(buffer, cl::sycl::id<1>(offset), cl::sycl::range<1>(n_bytes));
+      subbuf.set_write_back(true);
+      std::cout << "buffer size/count: " << buffer.get_size() << ", " << buffer.get_count() << std::endl;
+      std::cout << "subbuf size/count: " << subbuf.get_size() << ", " << subbuf.get_count() << std::endl;
       
       {
-        auto acc = reint.template get_access<cl::sycl::access::mode::read>();
-        for (size_t i = 0; i < count; ++i) {
-          std::cout << "reint[" << i << "] = " << int(acc[i]) << std::endl;
+        auto reint = subbuf.template reinterpret<T>(cl::sycl::range<1>(count));
+        std::cout << "reint size/count:  " << reint.get_size() << ", " << reint.get_count() << std::endl;
+        
+        auto f = [&](cl::sycl::handler &cgh) {
+          auto acc = reint.template get_access<write_mode, global_access>(cgh);
+          std::cout << "acc size/count:  " << acc.get_size() << ", " << acc.get_count() << std::endl;
+          cgh.fill(acc, value);
+        };
+        cl::sycl::event e;
+        EIGEN_SYCL_TRY_CATCH(e = m_queue.submit(f));
+        async_synchronize(e);
+        
+        auto racc = reint.template get_access<read_mode>();
+        std::cout << "reint: " << std::endl;
+        for (size_t i = 0; i < racc.get_count(); ++i) {
+          std::cout << int(racc[i]) << std::endl;
         }
       }
-
-      {
-        auto acc = subbuf.template get_access<cl::sycl::access::mode::read>();
-        for (size_t i = 0; i < n; ++i) {
-          std::cout << "subbuf[" << i << "] = " << int(acc[i]) << std::endl;
-        }
-      }
-    
-      {
-        auto acc = buffer.template get_access<cl::sycl::access::mode::read>();
-        for (size_t i = 0; i < n; ++i) {
-          std::cout << "buffer[" << (i+offset) << "] = " << int(acc[i+offset]) << std::endl;
-        }
-      }
-
-    }
-    {
-      std::lock_guard<std::mutex> lock(pmapper_mutex_);
-      auto subbuf = pMapper.get_sub_buffer<buffer_scalar_t>(begin, n);
-      auto buffer_read = subbuf.template get_access<cl::sycl::access::mode::read>();
-      for (size_t i = 0; i < n; ++i) {
-        std::cout << i << ": " << int(buffer_read[i]) << std::endl;
+      
+      std::cout << "subbuf: " << std::endl;
+      auto acc = subbuf.template get_access<read_mode>();
+      for (size_t i = 0; i < acc.get_count(); ++i) {
+        std::cout << int(acc[i]) << std::endl;
       }
     }
     
-    // {
-    //   auto buffer = orig_buffer.template reinterpret<T>(cl::sycl::range<1>(count));
-    //   auto f = [&](cl::sycl::handler &cgh) {
-    //     static const auto global_access = cl::sycl::access::target::global_buffer;
-    //     auto access = buffer.template get_access<write_mode, global_access>(cgh);   
-    //     // auto access = get_range_accessor<write_mode, T>(cgh, begin, count);
-    //     std::cout << "access size/count: " << access.get_size() << " vs " << access.get_count() << std::endl;
-    //     cgh.fill(access, value);
-    //   };
-    //   cl::sycl::event e;
-    //   // EIGEN_SYCL_TRY_CATCH(e = m_queue.submit(f));
-    //   // async_synchronize(e);
-    //   m_queue.submit(f);
-    //   m_queue.wait_and_throw();
-      
-    // }
-    
-    // {
-    //   // Trigger sync to work around ComputeCPP bug.
-    //   auto buffer_read = buffer.template get_access<cl::sycl::access::mode::read>();
-    //   EIGEN_UNUSED_VARIABLE(buffer_read)
-    //   for (size_t i=0; i<buffer_read.get_count(); ++i) {
-    //     std::cout << i << ": " << buffer_read[i] << " vs " << value << std::endl;
-    //   }
-    // }
-    // {
-    //   // Check that underlying buffer is also modified.
-    //   std::cout << "underlying buffer" << std::endl;
-    //   auto buffer_read = orig_buffer.template get_access<cl::sycl::access::mode::read>();
-    //   for (size_t i=0; i<buffer_read.get_count(); ++i) {
-    //     std::cout << i << ": " << std::hex << int(buffer_read[i]) << std::dec << std::endl;
-    //   }
-    // }
+    std::cout << "buffer: " << std::endl;
+    auto bacc = buffer.template get_access<read_mode>();
+    for (size_t i = 0; i < bacc.get_count(); ++i) {
+      std::cout << int(bacc[i]) << std::endl;
+    }
   }
 
   /// Get a range accessor to the virtual pointer's device memory. This range
@@ -482,16 +428,46 @@ class QueueInterface {
 
   /// Get a range accessor to the virtual pointer's device memory with a
   /// specified size.
-  template <cl::sycl::access::mode AcMd, typename T, typename Index>
+  template <cl::sycl::access::mode AcMd, typename Index>
   EIGEN_STRONG_INLINE cl::sycl::accessor<
-      T, 1, AcMd, cl::sycl::access::target::global_buffer>
+      buffer_scalar_t, 1, AcMd, cl::sycl::access::target::global_buffer>
   get_range_accessor(cl::sycl::handler &cgh, const void *ptr,
                      const Index n_bytes) const {
     static const auto global_access = cl::sycl::access::target::global_buffer;
     eigen_assert(n_bytes >= 0);
-    const size_t count = n_bytes / sizeof(T);
     std::lock_guard<std::mutex> lock(pmapper_mutex_);
-    auto buffer = pMapper.get_sub_buffer<T>(ptr, count);
+    auto buffer = pMapper.get_buffer(ptr);
+    const ptrdiff_t offset = pMapper.get_offset(ptr);
+        eigen_assert(offset >= 0);
+
+    return buffer.template get_access<AcMd, global_access>(cgh, 
+        cl::sycl::range<1>(n_bytes), cl::sycl::id<1>(offset));
+  }
+  
+  /// Get a range accessor to the virtual pointer's device memory with a
+  /// specified size.
+  template <cl::sycl::access::mode AcMd, typename T, typename Index>
+  EIGEN_STRONG_INLINE cl::sycl::accessor<
+      T, 1, AcMd, cl::sycl::access::target::global_buffer>
+  get_typed_range_accessor(cl::sycl::handler &cgh, const void *ptr,
+                     const Index n_bytes) const {
+    static const auto global_access = cl::sycl::access::target::global_buffer;
+    eigen_assert(n_bytes >= 0);
+    std::lock_guard<std::mutex> lock(pmapper_mutex_);
+    auto original_buffer = pMapper.get_buffer(ptr);
+    const ptrdiff_t offset = pMapper.get_offset(ptr);
+        eigen_assert(offset >= 0);
+
+    // Sub-buffer for desired offset/range.
+    auto subbuffer = cl::sycl::buffer<buffer_scalar_t, 1>(original_buffer, 
+        cl::sycl::id<1>(offset), cl::sycl::range<1>(n_bytes));    
+    const Index count = n_bytes / sizeof(T);
+    eigen_assert(count <= static_cast<Index>(subbuffer.get_count()));
+
+    auto buffer = subbuffer.template reinterpret<
+        typename Eigen::internal::remove_const<T>::type>(
+        cl::sycl::range<1>(count));
+    
     return buffer.template get_access<AcMd, global_access>(cgh);
   }
 
@@ -1012,15 +988,6 @@ struct SyclDevice : public SyclDeviceBase {
     return queue_stream()->get(data);
   }
 
-  /// attach existing buffer
-  EIGEN_STRONG_INLINE void *attach_buffer(
-      cl::sycl::buffer<buffer_scalar_t, 1> &buf) const {
-    return queue_stream()->attach_buffer(buf);
-  }
-  /// detach buffer
-  EIGEN_STRONG_INLINE void detach_buffer(void *p) const {
-    queue_stream()->detach_buffer(p);
-  }
   EIGEN_STRONG_INLINE ptrdiff_t get_offset(const void *ptr) const {
     return queue_stream()->get_offset(ptr);
   }

@@ -29,6 +29,7 @@
 #include <stdexcept>
 #endif
 #include <cstddef>
+#include <memory>
 #include <queue>
 #include <set>
 #include <unordered_map>
@@ -139,7 +140,7 @@ class PointerMapper {
 
   /* basic type for all buffers
    */
-  using buffer_t = cl::sycl::buffer<buffer_data_type_t>;
+  using buffer_t = cl::sycl::buffer<buffer_data_type_t, 1>;
 
   /**
    * Node that stores information about a device allocation.
@@ -147,13 +148,13 @@ class PointerMapper {
    * that can be recovered.
    */
   struct pMapNode_t {
-    buffer_t m_buffer;
+    std::shared_ptr<buffer_t> m_buffer;
     size_t m_size;
     bool m_free;
 
-    pMapNode_t(buffer_t b, size_t size, bool f)
-        : m_buffer{b}, m_size{size}, m_free{f} {
-      m_buffer.set_final_data(nullptr);
+    pMapNode_t(std::shared_ptr<buffer_t> b, size_t size, bool f)
+        : m_buffer{std::move(b)}, m_size{size}, m_free{f} {
+      m_buffer->set_final_data(nullptr);
     }
 
     bool operator<=(const pMapNode_t &rhs) { return (m_size <= rhs.m_size); }
@@ -230,17 +231,15 @@ class PointerMapper {
   }
 
   /* get_buffer.
-   * Returns the root buffer from the map using the pointer address.  The start
-   * of the buffer does not necessarily correspond to the pointer address - see
-   *   get_offset(const virtual_pointer_t)
-   * to get the offset from the start of the returned buffer.
+   * Returns a buffer from the map using the pointer address
    */
-  buffer_t get_buffer(const virtual_pointer_t ptr) {
+  buffer_t& get_buffer(
+      const virtual_pointer_t ptr) {
     auto node = get_node(ptr);
     eigen_assert(node->first == ptr || node->first < ptr);
     eigen_assert(ptr < static_cast<virtual_pointer_t>(node->second.m_size +
                                                       node->first));
-    return node->second.m_buffer;
+    return *(node->second.m_buffer);
   }
 
   /*
@@ -263,41 +262,6 @@ class PointerMapper {
   template <typename buffer_data_type>
   inline size_t get_element_offset(const virtual_pointer_t ptr) {
     return get_offset(ptr) / sizeof(buffer_data_type);
-  }
-
-  /* get_sub_buffer.
-   * Returns a typed buffer starting at a virtual pointer with a given count.
-   */
-  template <typename buffer_data_type = buffer_data_type_t,
-            typename enable_if = typename Eigen::internal::enable_if<Eigen::internal::is_same<buffer_data_type, buffer_data_type_t>::value>::type >
-  cl::sycl::buffer<buffer_data_type_t, 1> get_sub_buffer(
-      const virtual_pointer_t ptr, size_t count) {
-    const auto node = get_node(ptr);
-    const auto start = node->first;
-    eigen_assert(start == ptr || start < ptr);
-    eigen_assert(ptr < static_cast<virtual_pointer_t>(start + node->second.m_size));
-    const auto offset = (ptr - start);
-    const auto size = count * sizeof(buffer_data_type);
-    eigen_assert(size <= node->second.m_size);
-    std::cout << "Getting sub-buffer: " << count << std::endl;
-    
-    return cl::sycl::buffer<buffer_data_type, 1>(node->second.m_buffer,
-                                                 cl::sycl::id<1>(offset),
-                                                 cl::sycl::range<1>(count));
-  }
-  
-  /* get_sub_buffer.
-   * Returns a typed buffer starting at a virtual pointer with a given count.
-   */
-  template <typename buffer_data_type = buffer_data_type_t,
-            typename enable_if = typename Eigen::internal::enable_if<!Eigen::internal::is_same<buffer_data_type, buffer_data_type_t>::value>::type >
-  cl::sycl::buffer<buffer_data_type, 1> get_sub_buffer(
-      const virtual_pointer_t ptr, size_t count) {
-    size_t base_count = count * sizeof(buffer_data_type) / sizeof(buffer_data_type_t);
-    auto base = get_sub_buffer<buffer_data_type_t>(ptr, base_count);
-    auto out = base.reinterpret<buffer_data_type>(cl::sycl::range<1>(count));
-    std::cout << "Getting typed sub-buffer: " << out.get_count() << " vs " << out.get_size() << std::endl;
-    return out;
   }
 
   /**
@@ -324,17 +288,10 @@ class PointerMapper {
   }
 
   /* add_pointer.
-   * Adds an existing pointer to the map and returns the virtual pointer id.
-   */
-  inline virtual_pointer_t add_pointer(const buffer_t &b) {
-    return add_pointer_impl(b);
-  }
-
-  /* add_pointer.
    * Adds a pointer to the map and returns the virtual pointer id.
    */
-  inline virtual_pointer_t add_pointer(buffer_t &&b) {
-    return add_pointer_impl(b);
+  inline virtual_pointer_t add_pointer(std::shared_ptr<buffer_t> b) {
+    return add_pointer_impl(std::move(b));
   }
 
   /**
@@ -420,24 +377,22 @@ class PointerMapper {
  private:
   /* add_pointer_impl.
    * Adds a pointer to the map and returns the virtual pointer id.
-   * BufferT is either a const buffer_t& or a buffer_t&&.
    */
-  template <class BufferT>
-  virtual_pointer_t add_pointer_impl(BufferT b) {
+  virtual_pointer_t add_pointer_impl(std::shared_ptr<buffer_t> b) {
     virtual_pointer_t retVal = nullptr;
-    size_t bufSize = b.get_count();
-    pMapNode_t p{b, bufSize, false};
+    size_t bufSize = b->get_count();
+
     // If this is the first pointer:
     if (m_pointerMap.empty()) {
       virtual_pointer_t initialVal{m_baseAddress};
-      m_pointerMap.emplace(initialVal, p);
+      m_pointerMap.emplace(initialVal, pMapNode_t{std::move(b), bufSize, false});
       return initialVal;
     }
 
     auto lastElemIter = get_insertion_point(bufSize);
     // We are recovering an existing free node
     if (lastElemIter->second.m_free) {
-      lastElemIter->second.m_buffer = b;
+      lastElemIter->second.m_buffer = std::move(b);
       lastElemIter->second.m_free = false;
 
       // If the recovered node is bigger than the inserted one
@@ -445,22 +400,22 @@ class PointerMapper {
       if (lastElemIter->second.m_size > bufSize) {
         // create a new node with the remaining space
         auto remainingSize = lastElemIter->second.m_size - bufSize;
-        pMapNode_t p2{b, remainingSize, true};
-
         // update size of the current node
         lastElemIter->second.m_size = bufSize;
 
         // add the new free node
         auto newFreePtr = lastElemIter->first + bufSize;
-        auto freeNode = m_pointerMap.emplace(newFreePtr, p2).first;
-        m_freeList.emplace(freeNode);
+        auto freeNode = m_pointerMap.emplace(newFreePtr, 
+            pMapNode_t{lastElemIter->second.m_buffer, remainingSize, true}
+        ).first;
+        m_freeList.emplace(std::move(freeNode));
       }
 
       retVal = lastElemIter->first;
     } else {
       size_t lastSize = lastElemIter->second.m_size;
       retVal = lastElemIter->first + lastSize;
-      m_pointerMap.emplace(retVal, p);
+      m_pointerMap.emplace(retVal, pMapNode_t{std::move(b), bufSize, false});
     }
     return retVal;
   }
@@ -515,7 +470,8 @@ inline void *SYCLmalloc(size_t size, PointerMapper &pMap) {
   }
   // Create a generic buffer of the given size
   using buffer_t = cl::sycl::buffer<buffer_data_type_t, 1>;
-  auto thePointer = pMap.add_pointer(buffer_t(cl::sycl::range<1>{size}));
+  auto thePointer = pMap.add_pointer(
+      std::make_shared<buffer_t>(cl::sycl::range<1>{size}));
   // Store the buffer on the global list
   return static_cast<void *>(thePointer);
 }

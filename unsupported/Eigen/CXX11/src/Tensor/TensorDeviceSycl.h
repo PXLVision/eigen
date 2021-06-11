@@ -102,6 +102,23 @@ EIGEN_STRONG_INLINE auto get_sycl_supported_devices()
 #endif
 }
 
+template<typename T, typename Accessor>
+class ParallelFillKernel {
+ public:
+  ParallelFillKernel(Accessor* acc, size_t count, uint8_t* bytes) : acc(acc), count(count), bytes(bytes) {}
+  void operator()(cl::sycl::id<1> offset) {
+    const size_t byte_idx = offset[0];
+    for (size_t i = 0; i<count; ++i) {
+      (*acc)[offset + i * sizeof(T)] = bytes[byte_idx];
+    }   
+  }
+  
+ private:
+  Accessor* acc;
+  size_t count;
+  uint8_t* bytes;
+};
+
 class QueueInterface {
  public:
   /// Creating device by using cl::sycl::selector or cl::sycl::device.
@@ -334,6 +351,34 @@ class QueueInterface {
       // memset. The cast to buffer_scalar_t is needed to match the type of the
       // accessor (in case buffer_scalar_t is not uint8_t)
       cgh.fill(dst_acc, static_cast<buffer_scalar_t>(static_cast<uint8_t>(c)));
+    };
+    cl::sycl::event e;
+    EIGEN_SYCL_TRY_CATCH(e = m_queue.submit(f));
+    async_synchronize(e);
+  }
+
+  template<typename T>
+  EIGEN_STRONG_INLINE void fill(T* begin, T* end, const T& value) const {
+  static const auto write_mode = cl::sycl::access::mode::discard_write;
+    if (begin == end) {
+      return;
+    }
+    const auto count = end - begin;
+    const auto n_bytes = count * sizeof(T);
+    
+    // Extract bytes for byte-copy.
+    uint8_t value_bytes[sizeof(T)];
+    std::memcpy(value_bytes, &value, sizeof(T));
+    
+    auto f = [&](cl::sycl::handler &cgh) {
+      auto dst_acc = get_range_accessor<write_mode>(cgh, begin, n_bytes);
+      // Using parallel_for, since attempts to use sub-buffer and reinterpret
+      // seem to fail to copy data back to the original buffer in ComputeCPP,
+      // even with the read workaround suggested in 
+      //   https://www.codeplay.com/portal/blogs/2018/03/09/buffer-reinterpret-viewing-data-from-a-different-perspective.html
+      
+      ParallelFillKernel<T, decltype(dst_acc)> fill_kernel(&dst_acc, count, value_bytes);
+      cgh.parallel_for(cl::sycl::range<1>(sizeof(T)), fill_kernel);
     };
     cl::sycl::event e;
     EIGEN_SYCL_TRY_CATCH(e = m_queue.submit(f));
@@ -950,6 +995,11 @@ struct SyclDevice : public SyclDeviceBase {
   /// the memset function
   EIGEN_STRONG_INLINE void memset(void *data, int c, size_t n) const {
     queue_stream()->memset(data, c, n);
+  }
+  /// the fill function
+  template<typename T>
+  EIGEN_STRONG_INLINE void fill(T* begin, T* end, const T& value) const {
+    queue_stream()->fill(begin, end, value);
   }
   /// returning the sycl queue
   EIGEN_STRONG_INLINE cl::sycl::queue &sycl_queue() const {

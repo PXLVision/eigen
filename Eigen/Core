@@ -329,6 +329,7 @@ using std::ptrdiff_t;
 #include "src/Core/SelfAdjointView.h"
 #include "src/Core/products/GeneralBlockPanelKernel.h"
 #include "src/Core/products/Parallelizer.h"
+#include "src/Core/util/Parallelizer.h"  // Must currently be after products/Parallelizer for OpenMP
 #include "src/Core/ProductEvaluators.h"
 #include "src/Core/products/GeneralMatrixVector.h"
 #include "src/Core/products/GeneralMatrixMatrix.h"

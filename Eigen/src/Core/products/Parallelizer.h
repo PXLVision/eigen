@@ -78,8 +78,11 @@ namespace internal {
 
 template<typename Index> struct GemmParallelInfo
 {
-  GemmParallelInfo() : sync(-1), users(0), lhs_start(0), lhs_length(0) {}
+  GemmParallelInfo() : shard_index(0), shards(1), sync(-1), users(0), lhs_start(0), lhs_length(0) {}
 
+  Index shard_index; // Actual shard index.
+  Index shards;      // Number of total shards.
+  
   // volatile is not enough on all architectures (see bug 1572)
   // to guarantee that when thread A says to thread B that it is
   // done with packing a block, then all writes have been really
@@ -91,7 +94,6 @@ template<typename Index> struct GemmParallelInfo
   Index volatile sync;
   int volatile users;
 #endif
-
   Index lhs_start;
   Index lhs_length;
 };
@@ -128,7 +130,7 @@ void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, 
   // compute the maximal number of threads from the total amount of work:
   double work = static_cast<double>(rows) * static_cast<double>(cols) *
       static_cast<double>(depth);
-  double kMinTaskSize = 50000;  // FIXME improve this heuristic.
+  double kMinTaskSize = 1; // 50000;  // FIXME improve this heuristic.
   pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>( work / kMinTaskSize ) ));
 
   // compute the number of threads we are going to use
@@ -148,12 +150,16 @@ void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, 
 
   ei_declare_aligned_stack_constructed_variable(GemmParallelInfo<Index>,info,threads,0);
 
+  // Index actual_threads = threads;
+  // for (Index i=0; i<actual_threads; ++i) {
   #pragma omp parallel num_threads(threads)
   {
     Index i = omp_get_thread_num();
     // Note that the actual number of threads might be lower than the number of request ones.
     Index actual_threads = omp_get_num_threads();
-
+    
+    info[i].shard_index = i;
+    info[i].shards = actual_threads;
     Index blockCols = (cols / actual_threads) & ~Index(0x3);
     Index blockRows = (rows / actual_threads);
     blockRows = (blockRows/Functor::Traits::mr)*Functor::Traits::mr;
@@ -166,9 +172,11 @@ void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, 
 
     info[i].lhs_start = r0;
     info[i].lhs_length = actualBlockRows;
+    printf("parallelizing %li/%li, %li %li %li %li %li %li\n", i, actual_threads, rows, cols, r0, c0, actualBlockRows, actualBlockCols);
+    if(transpose) func(c0, actualBlockCols, 0, rows, info, i);
+    else          func(0, rows, c0, actualBlockCols, info, i);
 
-    if(transpose) func(c0, actualBlockCols, 0, rows, info);
-    else          func(0, rows, c0, actualBlockCols, info);
+    printf("Done thread %li\n", i);
   }
 #endif
 }

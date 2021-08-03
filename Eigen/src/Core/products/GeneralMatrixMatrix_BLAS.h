@@ -61,7 +61,8 @@ static void run(Index rows, Index cols, Index depth, \
   EIGTYPE* res, Index resIncr, Index resStride, \
   EIGTYPE alpha, \
   level3_blocking<EIGTYPE, EIGTYPE>& /*blocking*/, \
-  GemmParallelInfo<Index>* /*info = 0*/) \
+  GemmParallelInfo<Index>* /*info = 0*/
+  Index /*shard_index = 0/*) \
 { \
   using std::conj; \
 \

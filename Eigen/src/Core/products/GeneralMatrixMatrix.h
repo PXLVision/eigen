@@ -34,14 +34,15 @@ struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLh
     ResScalar* res, Index resIncr, Index resStride,
     ResScalar alpha,
     level3_blocking<RhsScalar,LhsScalar>& blocking,
-    GemmParallelInfo<Index>* info = 0)
+    GemmParallelInfo<Index>* info = 0,
+    Index shard_index = 0)
   {
     // transpose the product such that the result is column major
     general_matrix_matrix_product<Index,
       RhsScalar, RhsStorageOrder==RowMajor ? ColMajor : RowMajor, ConjugateRhs,
       LhsScalar, LhsStorageOrder==RowMajor ? ColMajor : RowMajor, ConjugateLhs,
       ColMajor,ResInnerStride>
-    ::run(cols,rows,depth,rhs,rhsStride,lhs,lhsStride,res,resIncr,resStride,alpha,blocking,info);
+    ::run(cols,rows,depth,rhs,rhsStride,lhs,lhsStride,res,resIncr,resStride,alpha,blocking,info,shard_index);
   }
 };
 
@@ -64,7 +65,8 @@ static void run(Index rows, Index cols, Index depth,
   ResScalar* _res, Index resIncr, Index resStride,
   ResScalar alpha,
   level3_blocking<LhsScalar,RhsScalar>& blocking,
-  GemmParallelInfo<Index>* info = 0)
+  GemmParallelInfo<Index>* info = 0,
+  Index shard_index = 0)
 {
   typedef const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder> LhsMapper;
   typedef const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder> RhsMapper;
@@ -85,8 +87,8 @@ static void run(Index rows, Index cols, Index depth,
   if(info)
   {
     // this is the parallel version!
-    int tid = omp_get_thread_num();
-    int threads = omp_get_num_threads();
+    int tid = shard_index;
+    int threads = info[tid].shards;
 
     LhsScalar* blockA = blocking.blockA();
     eigen_internal_assert(blockA!=0);
@@ -101,6 +103,7 @@ static void run(Index rows, Index cols, Index depth,
 
       // In order to reduce the chance that a thread has to wait for the other,
       // let's start by packing B'.
+      printf("thread %i pack_rhs %li %li %li %li\n", tid, k, Index(0), actual_kc, nc);
       pack_rhs(blockB, rhs.getSubMapper(k,0), actual_kc, nc);
 
       // Pack A_k to A' in a parallel fashion:
@@ -112,6 +115,7 @@ static void run(Index rows, Index cols, Index depth,
       while(info[tid].users!=0) {}
       info[tid].users = threads;
 
+      printf("thread %i pack_lhs %li %li %li %li\n", tid, info[tid].lhs_start, k, actual_kc, info[tid].lhs_length);
       pack_lhs(blockA+info[tid].lhs_start*actual_kc, lhs.getSubMapper(info[tid].lhs_start,k), actual_kc, info[tid].lhs_length);
 
       // Notify the other threads that the part A'_i is ready to go.
@@ -222,7 +226,7 @@ struct gemm_functor
     m_blocking.allocateA();
   }
 
-  void operator() (Index row, Index rows, Index col=0, Index cols=-1, GemmParallelInfo<Index>* info=0) const
+  void operator() (Index row, Index rows, Index col=0, Index cols=-1, GemmParallelInfo<Index>* info=0, Index shard_index=0) const
   {
     if(cols==-1)
       cols = m_rhs.cols();
@@ -231,7 +235,7 @@ struct gemm_functor
               &m_lhs.coeffRef(row,0), m_lhs.outerStride(),
               &m_rhs.coeffRef(0,col), m_rhs.outerStride(),
               (Scalar*)&(m_dest.coeffRef(row,col)), m_dest.innerStride(), m_dest.outerStride(),
-              m_actualAlpha, m_blocking, info);
+              m_actualAlpha, m_blocking, info, shard_index);
   }
 
   typedef typename Gemm::Traits Traits;

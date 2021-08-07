@@ -14,6 +14,10 @@
 #include <atomic>
 #endif
 
+#ifndef EIGEN_PARALLEL_GEMM_STEALING
+#define EIGEN_PARALLEL_GEMM_STEALING 0
+#endif
+
 namespace Eigen {
 
 namespace internal {
@@ -78,7 +82,15 @@ namespace internal {
 
 template<typename Index> struct GemmParallelInfo
 {
-  GemmParallelInfo() : shard_index(0), shards(1), sync(-1), users(0), lhs_start(0), lhs_length(0) {}
+  GemmParallelInfo() : 
+    shard_index(0), shards(1),
+    #if EIGEN_HAS_CXX11_ATOMIC && EIGEN_PARALLEL_GEMM_STEALING
+      init_started(false), init_finished(false),
+      rhs_depth_next(0), rhs_depth_done(0),
+      lhs_depth_next(0),
+    #endif
+    lhs_depth_ready(-1), lhs_depth_users(0),
+    lhs_start(0), lhs_length(0), rhs_start(0), rhs_length(0) {}
 
   Index shard_index; // Actual shard index.
   Index shards;      // Number of total shards.
@@ -88,14 +100,23 @@ template<typename Index> struct GemmParallelInfo
   // done with packing a block, then all writes have been really
   // carried out... C++11 memory model+atomic guarantees this.
 #if EIGEN_HAS_CXX11_ATOMIC
-  std::atomic<Index> sync;
-  std::atomic<int> users;
+  #if EIGEN_PARALLEL_GEMM_STEALING
+    std::atomic<bool> init_started;
+    std::atomic<bool> init_finished;
+    std::atomic<Index> rhs_depth_next;
+    std::atomic<Index> rhs_depth_done;
+    std::atomic<Index> lhs_depth_next;
+  #endif
+  std::atomic<Index> lhs_depth_ready;
+  std::atomic<int> lhs_depth_users;
 #else
-  Index volatile sync;
-  int volatile users;
+  Index volatile lhs_depth_ready;
+  int volatile lhs_depth_users;
 #endif
   Index lhs_start;
   Index lhs_length;
+  Index rhs_start;
+  Index rhs_length;
 };
 
 template<bool Condition, typename Functor, typename Index>
@@ -130,7 +151,7 @@ void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, 
   // compute the maximal number of threads from the total amount of work:
   double work = static_cast<double>(rows) * static_cast<double>(cols) *
       static_cast<double>(depth);
-  double kMinTaskSize = 1; // 50000;  // FIXME improve this heuristic.
+  double kMinTaskSize = 50000;  // FIXME improve this heuristic.
   pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>( work / kMinTaskSize ) ));
 
   // compute the number of threads we are going to use
@@ -150,6 +171,7 @@ void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, 
 
   ei_declare_aligned_stack_constructed_variable(GemmParallelInfo<Index>,info,threads,0);
 
+  // threads = 5;
   // Index actual_threads = threads;
   // for (Index i=0; i<actual_threads; ++i) {
   #pragma omp parallel num_threads(threads)
@@ -157,26 +179,59 @@ void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, 
     Index i = omp_get_thread_num();
     // Note that the actual number of threads might be lower than the number of request ones.
     Index actual_threads = omp_get_num_threads();
-    
-    info[i].shard_index = i;
-    info[i].shards = actual_threads;
+  
     Index blockCols = (cols / actual_threads) & ~Index(0x3);
     Index blockRows = (rows / actual_threads);
     blockRows = (blockRows/Functor::Traits::mr)*Functor::Traits::mr;
 
-    Index r0 = i*blockRows;
-    Index actualBlockRows = (i+1==actual_threads) ? rows-r0 : blockRows;
+    // Initialize parallel info with true number of threads.
+    #if EIGEN_HAS_CXX11_ATOMIC && EIGEN_PARALLEL_GEMM_STEALING
+      // Work-stealing approach.
+      for (Index shift=0; shift<actual_threads; ++shift) {
+        // Cycle around for all shards, starting at the current.
+        const Index j = (i + shift) % actual_threads;
+        
+        bool expected = false;
+        if (info[j].init_started.compare_exchange_strong(expected, true)) {
+          Index r0 = j*blockRows;
+          Index actualBlockRows = (j+1==actual_threads) ? rows-r0 : blockRows;
+          Index c0 = j*blockCols;
+          Index actualBlockCols = (j+1==actual_threads) ? cols-c0 : blockCols;
 
-    Index c0 = i*blockCols;
-    Index actualBlockCols = (i+1==actual_threads) ? cols-c0 : blockCols;
+          info[j].shard_index = j;
+          info[j].shards = actual_threads;
+          info[j].lhs_start = r0;
+          info[j].lhs_length = actualBlockRows;
+          info[j].rhs_start = c0;
+          info[j].rhs_length = actualBlockCols;
+          
+          info[j].init_finished = true;
+        }
+      }
+      
+      // Wait for initialization to finish.
+      for (Index j=0; j<actual_threads; ++j) {
+        while(!info[j].init_finished) {}
+      }
+    #else
+      Index r0 = i*blockRows;
+      Index actualBlockRows = (i+1==actual_threads) ? rows-r0 : blockRows;
+      Index c0 = i*blockCols;
+      Index actualBlockCols = (i+1==actual_threads) ? cols-c0 : blockCols;
 
-    info[i].lhs_start = r0;
-    info[i].lhs_length = actualBlockRows;
-    printf("parallelizing %li/%li, %li %li %li %li %li %li\n", i, actual_threads, rows, cols, r0, c0, actualBlockRows, actualBlockCols);
-    if(transpose) func(c0, actualBlockCols, 0, rows, info, i);
-    else          func(0, rows, c0, actualBlockCols, info, i);
-
-    printf("Done thread %li\n", i);
+      info[i].shard_index = i;
+      info[i].shards = actual_threads;
+      info[i].lhs_start = r0;
+      info[i].lhs_length = actualBlockRows;
+      info[i].rhs_start = c0;
+      info[i].rhs_length = actualBlockCols;
+    #endif   
+    
+    if(transpose) {
+      func(0, cols, 0, rows, info, i);
+    } else {
+      func(0, rows, 0, cols, info, i);
+    }
   }
 #endif
 }

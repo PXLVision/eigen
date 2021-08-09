@@ -65,6 +65,7 @@ public:
   typedef typename internal::traits<Solve>::PlainObject PlainObject;
   typedef typename internal::traits<Solve>::StorageIndex StorageIndex;
 
+  EIGEN_DEVICE_FUNC
   Solve(const Decomposition &dec, const RhsType &rhs)
     : m_dec(dec), m_rhs(rhs)
   {}

@@ -53,7 +53,7 @@ template<int N> class FixedInt
 public:
   static const int value = N;
   EIGEN_CONSTEXPR operator int() const { return value; }
-  FixedInt() {}
+  EIGEN_DEVICE_FUNC FixedInt() {}
   FixedInt( VariableAndFixedInt<N> other) {
     #ifndef EIGEN_INTERNAL_DEBUGGING
     EIGEN_UNUSED_VARIABLE(other);
@@ -79,14 +79,18 @@ public:
 
 #if EIGEN_HAS_CXX14_VARIABLE_TEMPLATES
   // Needed in C++14 to allow fix<N>():
+  EIGEN_DEVICE_FUNC
   FixedInt operator() () const { return *this; }
 
+  EIGEN_DEVICE_FUNC
   VariableAndFixedInt<N> operator() (int val) const { return VariableAndFixedInt<N>(val); }
 #else
+  EIGEN_DEVICE_FUNC
   FixedInt ( FixedInt<N> (*)() ) {}
 #endif
 
 #if EIGEN_HAS_CXX11
+  EIGEN_DEVICE_FUNC
   FixedInt(std::integral_constant<int,N>) {}
 #endif
 };
@@ -124,8 +128,8 @@ template<int N> class VariableAndFixedInt
 {
 public:
   static const int value = N;
-  operator int() const { return m_value; }
-  VariableAndFixedInt(int val) { m_value = val; }
+  EIGEN_DEVICE_FUNC operator int() const { return m_value; }
+  EIGEN_DEVICE_FUNC VariableAndFixedInt(int val) { m_value = val; }
 protected:
   int m_value;
 };
@@ -189,11 +193,13 @@ template<int N>
 static const internal::FixedInt<N> fix{};
 #else
 template<int N>
+EIGEN_DEVICE_FUNC
 inline internal::FixedInt<N> fix() { return internal::FixedInt<N>(); }
 
 // The generic typename T is mandatory. Otherwise, a code like fix<N> could refer to either the function above or this next overload.
 // This way a code like fix<N> can only refer to the previous function.
 template<int N,typename T>
+EIGEN_DEVICE_FUNC
 inline internal::VariableAndFixedInt<N> fix(T val) { return internal::VariableAndFixedInt<N>(internal::convert_index<int>(val)); }
 #endif
 
@@ -232,6 +238,7 @@ inline internal::VariableAndFixedInt<N> fix(T val) { return internal::VariableAn
   * \sa fix<N>(int), seq, seqN
   */
 template<int N>
+EIGEN_DEVICE_FUNC
 static const auto fix();
 
 /** \fn fix<N>(int)
@@ -263,6 +270,7 @@ static const auto fix();
   * \sa fix, seqN, class ArithmeticSequence
   */
 template<int N>
+EIGEN_DEVICE_FUNC
 static const auto fix(int val);
 
 #endif // EIGEN_PARSED_BY_DOXYGEN

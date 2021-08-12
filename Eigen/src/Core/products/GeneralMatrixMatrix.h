@@ -21,10 +21,11 @@ template<
   typename Index,
   typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
   typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
-  int ResInnerStride>
-struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,RowMajor,ResInnerStride>
+  int ResInnerStride, int Version>
+struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,RowMajor,ResInnerStride,Version>
 {
   typedef gebp_traits<RhsScalar,LhsScalar> Traits;
+  typedef gemm_product_traits<general_matrix_matrix_product> GemmProductTraits;
 
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
   static EIGEN_STRONG_INLINE void run(
@@ -51,7 +52,7 @@ template<
   typename Index,
   typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
   typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
-  int ResInnerStride>
+  int ResInnerStride, int Version>
 struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,ColMajor,ResInnerStride>
 {
 
@@ -209,7 +210,7 @@ static void run(Index rows, Index cols, Index depth,
 *  implementation of the high level wrapper to general_matrix_matrix_product
 **********************************************************************************/
 
-template<typename Scalar, typename Index, typename Gemm, typename Lhs, typename Rhs, typename Dest, typename BlockingType>
+template<typename Scalar, typename Index, typename Gemm, typename Lhs, typename Rhs, typename Dest, typename BlockingType, int Version=Specialized>
 struct gemm_functor
 {
   gemm_functor(const Lhs& lhs, const Rhs& rhs, Dest& dest, const Scalar& actualAlpha, BlockingType& blocking)

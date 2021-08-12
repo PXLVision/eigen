@@ -96,82 +96,136 @@ template<typename Index> struct GemmParallelInfo
   Index lhs_length;
 };
 
-template<bool Condition, typename Functor, typename Index>
-void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, bool transpose)
-{
-  // TODO when EIGEN_USE_BLAS is defined,
-  // we should still enable OMP for other scalar types
-  // Without C++11, we have to disable GEMM's parallelization on
-  // non x86 architectures because there volatile is not enough for our purpose.
-  // See bug 1572.
-#if (! defined(EIGEN_HAS_OPENMP)) || defined(EIGEN_USE_BLAS) || ((!EIGEN_HAS_CXX11_ATOMIC) && !(EIGEN_ARCH_i386_OR_x86_64))
-  // FIXME the transpose variable is only needed to properly split
-  // the matrix product when multithreading is enabled. This is a temporary
-  // fix to support row-major destination matrices. This whole
-  // parallelizer mechanism has to be redesigned anyway.
-  EIGEN_UNUSED_VARIABLE(depth);
-  EIGEN_UNUSED_VARIABLE(transpose);
-  func(0,rows, 0,cols);
+template<typename Derived_>
+class GemmParallelizer {
+ public:
+  typedef Derived_ Derived;
+  template<typename Functor, typename Index>
+  EIGEN_DEVICE_FUNC void run(const Functor& func, Index rows, Index cols, Index depth, bool row_major) {
+    return derived().run(func, rows, cols, depth, row_major);
+  }
+  
+  /** \returns a reference to the derived object */
+  EIGEN_DEVICE_FUNC Derived& derived() { return *static_cast<Derived*>(this); }
+
+  /** \returns a const reference to the derived object */
+  EIGEN_DEVICE_FUNC const Derived& derived() const { return *static_cast<const Derived*>(this); }
+};
+
+template<int Identifier, bool ParallelizeCondition>
+struct GemmParallelizerSelector;
+
+class SequentialGemmParallelizer : public GemmParallelizer<SequentialGemmParallizer> {
+ public:
+  template<typename Functor, typename Index>
+  void run(const Functor& func, Index rows, Index cols, Index depth, bool transpose) {
+    EIGEN_UNUSED_VARIABLE(depth)
+    EIGEN_UNUSED_VARIABLE(transpose)
+    func(0,rows, 0,cols);
+  }
+};
+
+#ifndef EIGEN_SEQUENTIAL_GEMM_PARALLELIZER_ID
+#define EIGEN_SEQUENTIAL_GEMM_PARALLELIZER_ID 0
+#endif
+template<>
+struct GemmParallelizerSelector<EIGEN_SEQUENTIAL_GEMM_PARALLELIZER_ID, true> {
+  typedef SequentialGemmParallelizer type;
+};
+
+template<int Identifier>
+struct GemmParallelizerSelector<Identifier, false> {
+  typedef SequentialGemmParallelizer type;
+};
+
+#if defined(EIGEN_HAS_OPENMP)
+class OpenMpGemmParallelizer : public GemmParallelizer<OpenMpGemmParallizer> {
+ public:
+  template<typename Functor, typename Index>
+  void run(const Functor& func, Index rows, Index cols, Index depth, bool transpose) {
+    // TODO when EIGEN_USE_BLAS is defined,
+    // we should still enable OMP for other scalar types
+    // Without C++11, we have to disable GEMM's parallelization on
+    // non x86 architectures because there volatile is not enough for our purpose.
+    // See bug 1572.
+#if ( defined(EIGEN_USE_BLAS) || ((!EIGEN_HAS_CXX11_ATOMIC) && !(EIGEN_ARCH_i386_OR_x86_64))
+    // FIXME the transpose variable is only needed to properly split
+    // the matrix product when multithreading is enabled. This is a temporary
+    // fix to support row-major destination matrices. This whole
+    // parallelizer mechanism has to be redesigned anyway.
+    EIGEN_UNUSED_VARIABLE(depth);
+    EIGEN_UNUSED_VARIABLE(transpose);
+    func(0,rows, 0,cols);
 #else
 
-  // Dynamically check whether we should enable or disable OpenMP.
-  // The conditions are:
-  // - the max number of threads we can create is greater than 1
-  // - we are not already in a parallel code
-  // - the sizes are large enough
+    // Dynamically check whether we should enable or disable OpenMP.
+    // The conditions are:
+    // - the max number of threads we can create is greater than 1
+    // - we are not already in a parallel code
+    // - the sizes are large enough
 
-  // compute the maximal number of threads from the size of the product:
-  // This first heuristic takes into account that the product kernel is fully optimized when working with nr columns at once.
-  Index size = transpose ? rows : cols;
-  Index pb_max_threads = std::max<Index>(1,size / Functor::Traits::nr);
+    // compute the maximal number of threads from the size of the product:
+    // This first heuristic takes into account that the product kernel is fully optimized when working with nr columns at once.
+    Index size = transpose ? rows : cols;
+    Index pb_max_threads = std::max<Index>(1,size / Functor::Traits::nr);
 
-  // compute the maximal number of threads from the total amount of work:
-  double work = static_cast<double>(rows) * static_cast<double>(cols) *
-      static_cast<double>(depth);
-  double kMinTaskSize = 50000;  // FIXME improve this heuristic.
-  pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>( work / kMinTaskSize ) ));
+    // compute the maximal number of threads from the total amount of work:
+    double work = static_cast<double>(rows) * static_cast<double>(cols) *
+        static_cast<double>(depth);
+    double kMinTaskSize = 50000;  // FIXME improve this heuristic.
+    pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>( work / kMinTaskSize ) ));
 
-  // compute the number of threads we are going to use
-  Index threads = std::min<Index>(nbThreads(), pb_max_threads);
+    // compute the number of threads we are going to use
+    Index threads = std::min<Index>(nbThreads(), pb_max_threads);
 
-  // if multi-threading is explicitly disabled, not useful, or if we already are in a parallel session,
-  // then abort multi-threading
-  // FIXME omp_get_num_threads()>1 only works for openmp, what if the user does not use openmp?
-  if((!Condition) || (threads==1) || (omp_get_num_threads()>1))
-    return func(0,rows, 0,cols);
+    // if multi-threading is explicitly disabled, not useful, or if we already are in a parallel session,
+    // then abort multi-threading
+    if((threads==1) || (omp_get_num_threads()>1))
+      return func(0,rows, 0,cols);
 
-  Eigen::initParallel();
-  func.initParallelSession(threads);
+    Eigen::initParallel();
+    func.initParallelSession(threads);
 
-  if(transpose)
-    std::swap(rows,cols);
+    if(transpose)
+      std::swap(rows,cols);
 
-  ei_declare_aligned_stack_constructed_variable(GemmParallelInfo<Index>,info,threads,0);
+    ei_declare_aligned_stack_constructed_variable(GemmParallelInfo<Index>,info,threads,0);
 
-  #pragma omp parallel num_threads(threads)
-  {
-    Index i = omp_get_thread_num();
-    // Note that the actual number of threads might be lower than the number of request ones.
-    Index actual_threads = omp_get_num_threads();
+    #pragma omp parallel num_threads(threads)
+    {
+      Index i = omp_get_thread_num();
+      // Note that the actual number of threads might be lower than the number of request ones.
+      Index actual_threads = omp_get_num_threads();
 
-    Index blockCols = (cols / actual_threads) & ~Index(0x3);
-    Index blockRows = (rows / actual_threads);
-    blockRows = (blockRows/Functor::Traits::mr)*Functor::Traits::mr;
+      Index blockCols = (cols / actual_threads) & ~Index(0x3);
+      Index blockRows = (rows / actual_threads);
+      blockRows = (blockRows/Functor::Traits::mr)*Functor::Traits::mr;
 
-    Index r0 = i*blockRows;
-    Index actualBlockRows = (i+1==actual_threads) ? rows-r0 : blockRows;
+      Index r0 = i*blockRows;
+      Index actualBlockRows = (i+1==actual_threads) ? rows-r0 : blockRows;
 
-    Index c0 = i*blockCols;
-    Index actualBlockCols = (i+1==actual_threads) ? cols-c0 : blockCols;
+      Index c0 = i*blockCols;
+      Index actualBlockCols = (i+1==actual_threads) ? cols-c0 : blockCols;
 
-    info[i].lhs_start = r0;
-    info[i].lhs_length = actualBlockRows;
+      info[i].lhs_start = r0;
+      info[i].lhs_length = actualBlockRows;
 
-    if(transpose) func(c0, actualBlockCols, 0, rows, info);
-    else          func(0, rows, c0, actualBlockCols, info);
-  }
+      if(transpose) func(c0, actualBlockCols, 0, rows, info);
+      else          func(0, rows, c0, actualBlockCols, info);
+    }
+  #endif
+ } 
+};
+
+#ifndef EIGEN_OPENMP_GEMM_PARALLELIZER_ID
+#define EIGEN_OPENMP_GEMM_PARALLELIZER_ID 1
 #endif
-}
+template<>
+struct GemmParallelizerSelector<EIGEN_OPENMP_GEMM_PARALLELIZER_ID, true> {
+  typedef OpenMpGemmParallelizer type;
+};
+
+#endif // EIGEN_HAS_OPENMP
 
 } // end namespace internal
 

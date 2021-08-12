@@ -16,15 +16,21 @@ namespace internal {
 
 template<typename LhsScalar_, typename RhsScalar_> class level3_blocking;
 
+template<typename GeneralMatrixMatrixProduct>
+struct gemm_product_traits {
+  typedef void* ParallelInfo;
+};
+
 /* Specialization for a row-major destination matrix => simple transposition of the product */
 template<
   typename Index,
   typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
   typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
-  int ResInnerStride>
-struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,RowMajor,ResInnerStride>
+  int ResInnerStride, int Version>
+struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,RowMajor,ResInnerStride,Version>
 {
   typedef gebp_traits<RhsScalar,LhsScalar> Traits;
+  typedef gemm_product_traits<general_matrix_matrix_product> GemmProductTraits;
 
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
   static EIGEN_STRONG_INLINE void run(
@@ -51,7 +57,7 @@ template<
   typename Index,
   typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
   typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
-  int ResInnerStride>
+  int ResInnerStride, int Version>
 struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,ColMajor,ResInnerStride>
 {
 

@@ -31,7 +31,7 @@ template<
   typename Index,
   typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
   typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
-  int ResStorageOrder, int ResInnerStride>
+  int ResStorageOrder, int ResInnerStride, int Version=Specialized>
 struct general_matrix_matrix_product;
 
 template<typename Index,

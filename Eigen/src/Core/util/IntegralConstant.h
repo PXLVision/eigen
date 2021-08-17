@@ -52,45 +52,56 @@ template<int N> class FixedInt
 {
 public:
   static const int value = N;
-  EIGEN_CONSTEXPR operator int() const { return value; }
-  EIGEN_DEVICE_FUNC FixedInt() {}
-  FixedInt( VariableAndFixedInt<N> other) {
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC operator int() const { return value; }
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC FixedInt() {}
+#if EIGEN_HAS_CXX14
+  EIGEN_CONSTEXPR
+#endif
+  EIGEN_DEVICE_FUNC FixedInt(VariableAndFixedInt<N> other) {
     #ifndef EIGEN_INTERNAL_DEBUGGING
     EIGEN_UNUSED_VARIABLE(other);
     #endif
     eigen_internal_assert(int(other)==N);
   }
 
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<-N> operator-() const { return FixedInt<-N>(); }
   template<int M>
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<N+M> operator+( FixedInt<M>) const { return FixedInt<N+M>(); }
   template<int M>
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<N-M> operator-( FixedInt<M>) const { return FixedInt<N-M>(); }
   template<int M>
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<N*M> operator*( FixedInt<M>) const { return FixedInt<N*M>(); }
   template<int M>
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<N/M> operator/( FixedInt<M>) const { return FixedInt<N/M>(); }
   template<int M>
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<N%M> operator%( FixedInt<M>) const { return FixedInt<N%M>(); }
   template<int M>
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<N|M> operator|( FixedInt<M>) const { return FixedInt<N|M>(); }
   template<int M>
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt<N&M> operator&( FixedInt<M>) const { return FixedInt<N&M>(); }
 
 #if EIGEN_HAS_CXX14_VARIABLE_TEMPLATES
   // Needed in C++14 to allow fix<N>():
-  EIGEN_DEVICE_FUNC
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt operator() () const { return *this; }
 
-  EIGEN_DEVICE_FUNC
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   VariableAndFixedInt<N> operator() (int val) const { return VariableAndFixedInt<N>(val); }
 #else
-  EIGEN_DEVICE_FUNC
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt ( FixedInt<N> (*)() ) {}
 #endif
 
 #if EIGEN_HAS_CXX11
-  EIGEN_DEVICE_FUNC
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   FixedInt(std::integral_constant<int,N>) {}
 #endif
 };
@@ -128,7 +139,7 @@ template<int N> class VariableAndFixedInt
 {
 public:
   static const int value = N;
-  EIGEN_DEVICE_FUNC operator int() const { return m_value; }
+  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC operator int() const { return m_value; }
   EIGEN_DEVICE_FUNC VariableAndFixedInt(int val) { m_value = val; }
 protected:
   int m_value;
@@ -157,9 +168,14 @@ struct get_fixed_value<variable_if_dynamic<T,N>,Default> {
   static const int value = N;
 };
 
-template<typename T> EIGEN_DEVICE_FUNC Index get_runtime_value(const T &x) { return x; }
+template<typename T>
+EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
+Index get_runtime_value(const T &x) { return x; }
+
 #if !EIGEN_HAS_CXX14
-template<int N> EIGEN_DEVICE_FUNC Index get_runtime_value(FixedInt<N> (*)()) { return N; }
+template<int N>
+EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
+Index get_runtime_value(FixedInt<N> (*)()) { return N; }
 #endif
 
 // Cleanup integer/FixedInt/VariableAndFixedInt/etc types:
@@ -190,16 +206,17 @@ template<int N, int DynamicKey> struct cleanup_index_type<std::integral_constant
 
 #if EIGEN_HAS_CXX14_VARIABLE_TEMPLATES
 template<int N>
+EIGEN_DEVICE_CONST
 static const internal::FixedInt<N> fix{};
 #else
 template<int N>
-EIGEN_DEVICE_FUNC
+EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
 inline internal::FixedInt<N> fix() { return internal::FixedInt<N>(); }
 
 // The generic typename T is mandatory. Otherwise, a code like fix<N> could refer to either the function above or this next overload.
 // This way a code like fix<N> can only refer to the previous function.
 template<int N,typename T>
-EIGEN_DEVICE_FUNC
+EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
 inline internal::VariableAndFixedInt<N> fix(T val) { return internal::VariableAndFixedInt<N>(internal::convert_index<int>(val)); }
 #endif
 
@@ -238,7 +255,7 @@ inline internal::VariableAndFixedInt<N> fix(T val) { return internal::VariableAn
   * \sa fix<N>(int), seq, seqN
   */
 template<int N>
-EIGEN_DEVICE_FUNC
+EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
 static const auto fix();
 
 /** \fn fix<N>(int)
@@ -270,7 +287,7 @@ static const auto fix();
   * \sa fix, seqN, class ArithmeticSequence
   */
 template<int N>
-EIGEN_DEVICE_FUNC
+EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
 static const auto fix(int val);
 
 #endif // EIGEN_PARSED_BY_DOXYGEN

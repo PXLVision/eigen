@@ -666,6 +666,29 @@ inline bool test_isUnitary(const MatrixBase<Derived>& m)
   return m.isUnitary(test_precision<typename internal::traits<Derived>::Scalar>());
 }
 
+// Checks component-wise, works with infs and nans.
+template<typename Derived1, typename Derived2>
+bool test_isCwiseApprox(const MatrixBase<Derived1>& m1,
+                        const MatrixBase<Derived2>& m2,
+                        bool exact) {
+  if (m1.rows() != m2.rows()) {
+    return false;
+  }
+  if (m1.cols() != m2.cols()) {
+    return false;
+  }
+  for (Index r = 0; r < m1.rows(); ++r) {
+    for (Index c = 0; c < m1.cols(); ++c) {
+      if (m1(r, c) != m2(r, c)
+          && !((numext::isnan)(m1(r, c)) && (numext::isnan)(m2(r, c))) 
+          && (exact || !test_isApprox(m1(r, c), m2(r, c)))) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 template<typename T, typename U>
 bool test_is_equal(const T& actual, const U& expected, bool expect_equal)
 {

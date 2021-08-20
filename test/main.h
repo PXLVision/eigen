@@ -55,19 +55,26 @@
 #endif
 #endif
 
-// Same for cuda_fp16.h
-#if defined(__CUDACC__) && !defined(EIGEN_NO_CUDA)
-  // Means the compiler is either nvcc or clang with CUDA enabled
+// Configure GPU.
+#if defined(EIGEN_USE_HIP)
+  #if defined(__HIPCC__) && !defined(EIGEN_NO_HIP)
+    #define EIGEN_HIPCC __HIPCC__
+    #include <hip/hip_runtime.h>
+    #include <hip/hip_runtime_api.h>
+  #endif
+#elif defined(__CUDACC__) && !defined(EIGEN_NO_CUDA)
   #define EIGEN_CUDACC __CUDACC__
+  #include <cuda.h>
+  #include <cuda_runtime.h>
+  #include <cuda_runtime_api.h>
+  #if CUDA_VERSION >= 7050
+    #include <cuda_fp16.h>
+  #endif
 #endif
-#if defined(EIGEN_CUDACC)
-#include <cuda.h>
-  #define EIGEN_CUDA_SDK_VER (CUDA_VERSION * 10)
-#else
-  #define EIGEN_CUDA_SDK_VER 0
-#endif
-#if EIGEN_CUDA_SDK_VER >= 70500
-#include <cuda_fp16.h>
+
+#if defined(EIGEN_CUDACC) || defined(EIGEN_HIPCC)
+  #define EIGEN_TEST_NO_LONGDOUBLE
+  #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 #endif
 
 // To test that all calls from Eigen code to std::min() and std::max() are
@@ -214,6 +221,8 @@ namespace Eigen
 #endif
 
 #ifndef EIGEN_NO_ASSERTION_CHECKING
+
+#include "gpu_test_helper.h"
 
   namespace Eigen
   {
@@ -391,6 +400,8 @@ inline void verify_impl(bool condition, const char *testname, const char *file, 
 #define VERIFY_IS_NOT_MUCH_SMALLER_THAN(a, b) VERIFY(!test_isMuchSmallerThan(a, b))
 #define VERIFY_IS_APPROX_OR_LESS_THAN(a, b) VERIFY(test_isApproxOrLessThan(a, b))
 #define VERIFY_IS_NOT_APPROX_OR_LESS_THAN(a, b) VERIFY(!test_isApproxOrLessThan(a, b))
+#define VERIFY_IS_CWISE_EQUAL(a, b) VERIFY(test_isCwiseApprox(a, b, true))
+#define VERIFY_IS_CWISE_APPROX(a, b) VERIFY(test_isCwiseApprox(a, b, false))
 
 #define VERIFY_IS_UNITARY(a) VERIFY(test_isUnitary(a))
 
@@ -623,6 +634,29 @@ template<typename Derived>
 inline bool test_isUnitary(const MatrixBase<Derived>& m)
 {
   return m.isUnitary(test_precision<typename internal::traits<Derived>::Scalar>());
+}
+
+// Checks component-wise, works with infs and nans.
+template<typename Derived1, typename Derived2>
+bool test_isCwiseApprox(const MatrixBase<Derived1>& m1,
+                        const MatrixBase<Derived2>& m2,
+                        bool exact) {
+  if (m1.rows() != m2.rows()) {
+    return false;
+  }
+  if (m1.cols() != m2.cols()) {
+    return false;
+  }
+  for (Index r = 0; r < m1.rows(); ++r) {
+    for (Index c = 0; c < m1.cols(); ++c) {
+      if (m1(r, c) != m2(r, c)
+          && !((numext::isnan)(m1(r, c)) && (numext::isnan)(m2(r, c))) 
+          && (exact || !test_isApprox(m1(r, c), m2(r, c)))) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 // Forward declaration to avoid ICC warning

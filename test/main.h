@@ -222,8 +222,6 @@ namespace Eigen
 
 #ifndef EIGEN_NO_ASSERTION_CHECKING
 
-#include "gpu_test_helper.h"
-
   namespace Eigen
   {
     static const bool should_raise_an_assert = false;
@@ -1090,3 +1088,5 @@ int main(int argc, char *argv[])
   // 4503 - decorated name length exceeded, name was truncated
   #pragma warning( disable : 4503)
 #endif
+
+#include "gpu_test_helper.h"

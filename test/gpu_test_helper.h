@@ -2,6 +2,7 @@
 #define GPU_TEST_HELPER_H
 
 #include "Serializer.h"
+#include "Tuple.h"
 
 #ifdef EIGEN_GPUCC
 #define EIGEN_USE_GPU
@@ -11,55 +12,6 @@
 namespace Eigen {
 
 namespace internal {
-
-// C++14 integer/index_sequence.
-#if defined(__cpp_lib_integer_sequence) && __cpp_lib_integer_sequence >= 201304L && EIGEN_MAX_CPP_VER >= 14
-
-using std::integer_sequence;
-using std::make_integer_sequence;
-
-using std::index_sequence;
-using std::make_index_sequence;
-
-#else 
-
-template <typename T, T... Ints>
-struct integer_sequence {
-  static EIGEN_CONSTEXPR size_t size() EIGEN_NOEXCEPT { return sizeof...(Ints); }
-};
-
-namespace {
-
-template <typename T, typename Sequence, T N>
-struct append_integer;
-
-template<typename T, T... Ints, T N>
-struct append_integer<T, integer_sequence<T, Ints...>, N> {
-  using type = integer_sequence<T, Ints..., N>;
-};
-
-template<typename T, size_t N>
-struct generate_integer_sequence {
-  using type = typename append_integer<T, typename generate_integer_sequence<T, N-1>::type, N-1>::type;
-};
-
-template<typename T>
-struct generate_integer_sequence<T, 0> {
-  using type = integer_sequence<T>;
-};
-
-} // namespace
-
-template <typename T, size_t N>
-using make_integer_sequence = typename generate_integer_sequence<T, N>::type;
-
-template<size_t... Ints>
-using index_sequence = integer_sequence<size_t, Ints...>;
-
-template<size_t N>
-using make_index_sequence = make_integer_sequence<size_t, N>;
-
-#endif
 
 // Determine if a type can be considered an "output" parameter - i.e. is
 // a non-const l-value reference.
@@ -183,22 +135,22 @@ void run_serialized(Kernel kernel, uint8_t* buffer, size_t capacity,
   // Deserialize input size and inputs.
   size_t input_size;
   uint8_t* buff_ptr = Eigen::deserialize(buffer, input_size);
-  std::tuple<typename std::decay<Args>::type...> args; // Value-type instances.
+  Eigen::Tuple<typename std::decay<Args>::type...> args; // Value-type instances.
   EIGEN_UNUSED_VARIABLE(args) // Avoid NVCC compile warning.
-  buff_ptr = Eigen::deserialize(buff_ptr, std::get<Indices>(args)...);
+  buff_ptr = Eigen::deserialize(buff_ptr, tuple_get<Indices>(args)...);
   
   // Call function, with void->Void conversion so we are guaranteed a complete
   // output type.
-  auto result = void_helper::call(kernel, std::get<Indices>(args)...);
+  auto result = void_helper::call(kernel, tuple_get<Indices>(args)...);
   
   // Serialize required buffer size and outputs.
   size_t output_size = sizeof(size_t);
-  output_size += serialize_outputs_only_size<Args...>(std::get<Indices>(args)...);
+  output_size += serialize_outputs_only_size<Args...>(tuple_get<Indices>(args)...);
   output_size += serialize_size(result);
   buff_ptr = Eigen::serialize(buffer, output_size);
   if (output_size <= capacity) {
     // Collect outputs and result.
-    buff_ptr = serialize_outputs_only<Args...>(buff_ptr, std::get<Indices>(args)...);
+    buff_ptr = serialize_outputs_only<Args...>(buff_ptr, tuple_get<Indices>(args)...);
     buff_ptr = Eigen::serialize(buff_ptr, result);
   }
 }

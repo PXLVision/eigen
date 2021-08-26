@@ -1240,12 +1240,15 @@ namespace Eigen {
  * Hiding the default destructor lead to problems in C++03 mode together with boost::multiprecision
  */
 #if EIGEN_HAS_CXX11
+// NVCC 9.1.85 seems to require this to be explicitly marked as a EIGEN_DEVICE_FUNC
+// otherwise we get compile warnings (calling __host__ function from __host__ __device__ function)
+// and kernel errors at runtime (Illegal instruction).
 #define EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(Derived)  \
-    Derived() = default; \
-    ~Derived() = default;
+    EIGEN_DEVICE_FUNC Derived() = default; \
+    EIGEN_DEVICE_FUNC ~Derived() = default;
 #else
 #define EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(Derived)  \
-    Derived() {}; \
+    EIGEN_DEVICE_FUNC Derived() {}; \
     /* ~Derived() {}; */
 #endif
 

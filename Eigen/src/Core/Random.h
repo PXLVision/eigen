@@ -16,7 +16,14 @@ namespace internal {
 
 template<typename Scalar> struct scalar_random_op {
   EIGEN_EMPTY_STRUCT_CTOR(scalar_random_op)
-  inline const Scalar operator() () const { return random<Scalar>(); }
+  inline const EIGEN_DEVICE_FUNC Scalar operator() () const {
+    #if defined(EIGEN_GPU_COMPILE_PHASE)
+    // random not currently support on GPU.
+    return Scalar(0);
+    #else
+    return random<Scalar>();
+    #endif
+  }
 };
 
 template<typename Scalar>

@@ -21,7 +21,7 @@ struct AddKernel {
   EIGEN_DEVICE_FUNC
   Type3 operator()(const Type1& A, const Type2& B, Type3& C) const {
     C = A + B;       // Populate output parameter.
-    Type3 D = A + B; // Populate return value.    
+    Type3 D = A + B; // Populate return value.
     return D;
   }
 };
@@ -35,7 +35,7 @@ void test_add(const T& type) {
   // Create random inputs.
   const T A = T::Random(rows, cols);
   const T B = T::Random(rows, cols);
-  T C; // Output parameter.
+  T C = T::Zero(rows, cols); // Output parameter.
 
   // Create kernel.
   AddKernel add_kernel;

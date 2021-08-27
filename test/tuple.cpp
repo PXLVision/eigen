@@ -88,6 +88,13 @@ void eigen_tuple_test() {
   VERIFY(Eigen::get<1>(tuple).isIdentity());
 }
 
+class NoDefault {
+ public:
+  NoDefault() = delete;
+  NoDefault(double y) : x(y) {}
+  double x;
+};
+
 EIGEN_DECLARE_TEST(tuple)
 {
   CALL_SUBTEST(basic_tuple_test());

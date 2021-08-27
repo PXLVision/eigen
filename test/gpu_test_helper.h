@@ -107,17 +107,19 @@ void run_serialized(index_sequence<Indices...>, index_sequence<OutputIndices...>
   // Deserialize input size and inputs.
   size_t input_size;
   uint8_t* buff_ptr = Eigen::deserialize(buffer, input_size);
-  Eigen::Tuple<typename std::decay<Args>::type...> args; // Value-type instances.
+  Eigen::Tuple<typename std::decay<Args>::type...> args = 
+    Eigen::make_tuple(typename std::decay<Args>::type{}...); // Value-type instances.
   EIGEN_UNUSED_VARIABLE(args) // Avoid NVCC compile warning.
-  buff_ptr = Eigen::deserialize(buff_ptr, get<Indices>(args)...);
+  // NVCC 9.1 requires us to spell out the template parameters explicitly.
+  buff_ptr = Eigen::deserialize(buff_ptr, get<Indices, typename std::decay<Args>::type...>(args)...);
   
   // Call function, with void->Void conversion so we are guaranteed a complete
   // output type.
-  auto result = void_helper::call(kernel, get<Indices>(args)...);
+  auto result = void_helper::call(kernel, get<Indices, typename std::decay<Args>::type...>(args)...);
   
   // Determine required output size.
   size_t output_size = sizeof(size_t);
-  output_size += Eigen::serialize_size(Eigen::get<OutputIndices>(args)...);
+  output_size += Eigen::serialize_size(Eigen::get<OutputIndices, typename std::decay<Args>::type...>(args)...);
   output_size += Eigen::serialize_size(result);
   
   // Always serialize required buffer size.
@@ -125,7 +127,7 @@ void run_serialized(index_sequence<Indices...>, index_sequence<OutputIndices...>
   // Serialize outputs if they fit in the buffer.
   if (output_size <= capacity) {
     // Collect outputs and result.
-    buff_ptr = Eigen::serialize(buff_ptr, Eigen::get<OutputIndices>(args)...);
+    buff_ptr = Eigen::serialize(buff_ptr, Eigen::get<OutputIndices, typename std::decay<Args>::type...>(args)...);
     buff_ptr = Eigen::serialize(buff_ptr, result);
   }
 }
@@ -217,11 +219,9 @@ auto run_serialized_on_gpu(index_sequence<Indices...>,
   gpuFree(device_data);
   
   // Deserialize outputs.
-  // Note: using Eigen::tie(args...) causes gcc-8 to fail with
-  //       "sorry, unimplemented: mangling reference_type".
-  auto args_tuple = Eigen::forward_as_tuple(std::forward<Args>(args)...);
+  auto args_tuple = Eigen::tie(args...);
   EIGEN_UNUSED_VARIABLE(args_tuple)  // Avoid NVCC compile warning.
-  host_ptr = Eigen::deserialize(host_ptr, Eigen::get<OutputIndices>(args_tuple)...);
+  host_ptr = Eigen::deserialize(host_ptr, Eigen::get<OutputIndices, Args...>(args_tuple)...);
   
   // Maybe deserialize return value, properly handling void.
   typename void_helper::ReturnType<decltype(kernel(args...))> result;

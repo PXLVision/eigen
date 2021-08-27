@@ -32,9 +32,9 @@ class TupleImpl<N, T1, Ts...> {
   
   // Default constructor, enable if all types are default-constructible.
   template<typename U1 = T1, typename EnableIf = typename std::enable_if<
-    reduce_all<
-      std::is_default_constructible<U1>::value,
-      std::is_default_constructible<Ts>::value...>::value>::type >
+      std::is_default_constructible<U1>::value
+      && reduce_all<std::is_default_constructible<Ts>::value...>::value
+    >::type>
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC
   TupleImpl() : head_{}, tail_{} {}
  
@@ -235,6 +235,18 @@ get(Tuple<Types...>& tuple) {
   return internal::get_impl<Idx, Types...>::run(tuple);
 }
 
+// template<size_t Idx, typename... Types>
+// EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+// int get(Eigen::Tuple<Types...> tuple) {
+//   return -1;
+// }
+
+// template<size_t Idx, typename... Types>
+// EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+// double get(typename Eigen::Tuple<std::decay<Types>::type...>& tuple) {
+//   return -2;
+// }
+
 /**
  * Concatenate multiple tuples.
  * \param tuples ... list of tuples.
@@ -254,19 +266,19 @@ tuple_cat(Tuples&&... tuples) {
 /**
  * Tie arguments together into a tuple.
  */
-template <typename... Args>
+template <typename... Args, typename ReturnType = Eigen::Tuple<Args&...>>
 EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-Eigen::Tuple<Args&...> tie(Args&... args) EIGEN_NOEXCEPT {
-    return {args...};
+ReturnType tie(Args&... args) EIGEN_NOEXCEPT {
+  return ReturnType{args...};
 }
 
 /**
  * Create a tuple of l-values with the supplied arguments.
  */
-template <typename... Args>
+template <typename... Args, typename ReturnType = Eigen::Tuple<typename internal::unwrap_decay<Args>::type...>>
 EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-Eigen::Tuple<typename internal::unwrap_decay<Args>::type...> make_tuple(Args&&... args) {
-  return Eigen::Tuple<typename internal::unwrap_decay<Args>::type...>(std::forward<Args>(args)...);
+ReturnType make_tuple(Args&&... args) {
+  return ReturnType{std::forward<Args>(args)...};
 }
 
 /**

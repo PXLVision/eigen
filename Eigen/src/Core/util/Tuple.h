@@ -97,24 +97,24 @@ struct is_tuple< TupleImpl<sizeof...(Types), Types...> > : std::true_type {};
 
 // Gets an element from a Tuple.
 template<size_t Idx, typename T1, typename... Ts>
-struct get_impl {
+struct tuple_get_impl {
   using TupleType = TupleImpl<sizeof...(Ts) + 1, T1, Ts...>;
-  using ReturnType = typename get_impl<Idx - 1, Ts...>::ReturnType;
+  using ReturnType = typename tuple_get_impl<Idx - 1, Ts...>::ReturnType;
   
   static EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
   ReturnType& run(TupleType& tuple) {
-    return get_impl<Idx-1, Ts...>::run(tuple.tail());
+    return tuple_get_impl<Idx-1, Ts...>::run(tuple.tail());
   }
 
   static EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
   const ReturnType& run(const TupleType& tuple) {
-    return get_impl<Idx-1, Ts...>::run(tuple.tail());
+    return tuple_get_impl<Idx-1, Ts...>::run(tuple.tail());
   }
 };
 
 // Base case, getting the head element.
 template<typename T1, typename... Ts>
-struct get_impl<0, T1, Ts...> {
+struct tuple_get_impl<0, T1, Ts...> {
   using TupleType = TupleImpl<sizeof...(Ts) + 1, T1, Ts...>;
   using ReturnType = T1;
 
@@ -149,8 +149,8 @@ struct tuple_cat_impl<NTuples, TupleImpl<N1, Args1...>, TupleImpl<N2, Args2...>,
                  Tuple2&& tuple2, index_sequence<I2s...>,
                  MoreTuples&&... tuples) {
     return tuple_cat_impl<NTuples-1, MergedTupleType, Tuples...>::run(
-        MergedTupleType(get_impl<I1s, Args1...>::run(std::forward<Tuple1>(tuple1))...,
-                        get_impl<I2s, Args2...>::run(std::forward<Tuple2>(tuple2))...),
+        MergedTupleType(tuple_get_impl<I1s, Args1...>::run(std::forward<Tuple1>(tuple1))...,
+                        tuple_get_impl<I2s, Args2...>::run(std::forward<Tuple2>(tuple2))...),
         std::forward<MoreTuples>(tuples)...);
   }
   
@@ -223,16 +223,16 @@ struct tuple_size< Tuple<Types...> > : std::integral_constant<size_t, sizeof...(
  */
 template<size_t Idx, typename... Types>
 EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-const typename internal::get_impl<Idx, Types...>::ReturnType&
-get(const Tuple<Types...>& tuple) {
-  return internal::get_impl<Idx, Types...>::run(tuple);
+const typename internal::tuple_get_impl<Idx, Types...>::ReturnType&
+tuple_get(const Tuple<Types...>& tuple) {
+  return internal::tuple_get_impl<Idx, Types...>::run(tuple);
 }
 
 template<size_t Idx, typename... Types>
 EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-typename internal::get_impl<Idx, Types...>::ReturnType&
-get(Tuple<Types...>& tuple) {
-  return internal::get_impl<Idx, Types...>::run(tuple);
+typename internal::tuple_get_impl<Idx, Types...>::ReturnType&
+tuple_get(Tuple<Types...>& tuple) {
+  return internal::tuple_get_impl<Idx, Types...>::run(tuple);
 }
 
 // template<size_t Idx, typename... Types>

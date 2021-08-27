@@ -78,20 +78,20 @@ void test_dense_types(Eigen::internal::index_sequence<Indices...>,
   auto inputs = Eigen::make_tuple(types...);
   // Trick to apply function to each tuple element,
   // creates an initializer list of 0s.
-  auto randomize = { (Eigen::get<Indices>(inputs).setRandom(), 0)... };
+  auto randomize = { (Eigen::tuple_get<Indices>(inputs).setRandom(), 0)... };
 
   // Allocate buffer and serialize.
-  size_t buffer_size = Eigen::serialize_size(Eigen::get<Indices>(inputs)...);
+  size_t buffer_size = Eigen::serialize_size(Eigen::tuple_get<Indices>(inputs)...);
   std::vector<uint8_t> buffer(buffer_size);
-  Eigen::serialize(buffer.data(), Eigen::get<Indices>(inputs)...);
+  Eigen::serialize(buffer.data(), Eigen::tuple_get<Indices>(inputs)...);
   
   // Clone everything.
   auto clones = Eigen::make_tuple(types...);
-  Eigen::deserialize(buffer.data(), Eigen::get<Indices>(clones)...);
+  Eigen::deserialize(buffer.data(), Eigen::tuple_get<Indices>(clones)...);
   
   // Verify they equal.
-  auto verify = { (verify_cwise(Eigen::get<Indices>(clones),
-                                Eigen::get<Indices>(inputs)), 0)... };
+  auto verify = { (verify_cwise(Eigen::tuple_get<Indices>(clones),
+                                Eigen::tuple_get<Indices>(inputs)), 0)... };
 }
 
 // Check a collection of dense types.

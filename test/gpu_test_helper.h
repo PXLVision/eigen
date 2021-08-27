@@ -111,15 +111,15 @@ void run_serialized(index_sequence<Indices...>, index_sequence<OutputIndices...>
     Eigen::make_tuple(typename std::decay<Args>::type{}...); // Value-type instances.
   EIGEN_UNUSED_VARIABLE(args) // Avoid NVCC compile warning.
   // NVCC 9.1 requires us to spell out the template parameters explicitly.
-  buff_ptr = Eigen::deserialize(buff_ptr, get<Indices, typename std::decay<Args>::type...>(args)...);
+  buff_ptr = Eigen::deserialize(buff_ptr, Eigen::tuple_get<Indices, typename std::decay<Args>::type...>(args)...);
   
   // Call function, with void->Void conversion so we are guaranteed a complete
   // output type.
-  auto result = void_helper::call(kernel, get<Indices, typename std::decay<Args>::type...>(args)...);
+  auto result = void_helper::call(kernel, Eigen::tuple_get<Indices, typename std::decay<Args>::type...>(args)...);
   
   // Determine required output size.
   size_t output_size = sizeof(size_t);
-  output_size += Eigen::serialize_size(Eigen::get<OutputIndices, typename std::decay<Args>::type...>(args)...);
+  output_size += Eigen::serialize_size(Eigen::tuple_get<OutputIndices, typename std::decay<Args>::type...>(args)...);
   output_size += Eigen::serialize_size(result);
   
   // Always serialize required buffer size.
@@ -127,7 +127,11 @@ void run_serialized(index_sequence<Indices...>, index_sequence<OutputIndices...>
   // Serialize outputs if they fit in the buffer.
   if (output_size <= capacity) {
     // Collect outputs and result.
+<<<<<<< HEAD
     buff_ptr = Eigen::serialize(buff_ptr, Eigen::get<OutputIndices, typename std::decay<Args>::type...>(args)...);
+=======
+    buff_ptr = Eigen::serialize(buff_ptr, Eigen::tuple_get<OutputIndices>(args)...);
+>>>>>>> 0bb727530 (fix tests)
     buff_ptr = Eigen::serialize(buff_ptr, result);
   }
 }
@@ -221,7 +225,11 @@ auto run_serialized_on_gpu(index_sequence<Indices...>,
   // Deserialize outputs.
   auto args_tuple = Eigen::tie(args...);
   EIGEN_UNUSED_VARIABLE(args_tuple)  // Avoid NVCC compile warning.
+<<<<<<< HEAD
   host_ptr = Eigen::deserialize(host_ptr, Eigen::get<OutputIndices, Args...>(args_tuple)...);
+=======
+  host_ptr = Eigen::deserialize(host_ptr, Eigen::tuple_get<OutputIndices>(args_tuple)...);
+>>>>>>> 0bb727530 (fix tests)
   
   // Maybe deserialize return value, properly handling void.
   typename void_helper::ReturnType<decltype(kernel(args...))> result;

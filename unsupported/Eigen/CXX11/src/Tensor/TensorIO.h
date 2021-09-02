@@ -36,25 +36,25 @@ struct TensorIOFormat
         
       init_spacer();
     }
-    
-    void init_spacer() {
-      if((flags & DontAlignCols))
-        return;
-      spacer.resize(prefix.size());
-      spacer[0] = "";
-      int i = int(tenPrefix.length())-1;
-      while (i>=0 && tenPrefix[i]!='\n') {
-        spacer[0] += ' ';
-        i--;
-      }
 
-      for (std::size_t k=1; k<prefix.size(); k++) {
-        int i = int(prefix[k].length())-1;
-        while (i>=0 && prefix[k][i]!='\n') {
-          spacer[k] += ' ';
-          i--;
+    void init_spacer()
+    {
+        if((flags & DontAlignCols)) return;
+        spacer.resize(prefix.size());
+        spacer[0] = "";
+        int i = int(tenPrefix.length()) - 1;
+        while(i >= 0 && tenPrefix[i] != '\n') {
+            spacer[0] += ' ';
+            i--;
         }
-      }
+
+        for(std::size_t k = 1; k < prefix.size(); k++) {
+            int i = int(prefix[k].length()) - 1;
+            while(i >= 0 && prefix[k][i] != '\n') {
+                spacer[k] += ' ';
+                i--;
+            }
+        }
     }
 
     static inline const TensorIOFormat Numpy() {
@@ -83,7 +83,7 @@ struct TensorIOFormat
       LegacyFormat.legacy_bit = true;
       return LegacyFormat;
     }
-    
+
     std::string tenPrefix;
     std::string tenSuffix;
     std::vector<std::string> prefix;
@@ -96,15 +96,17 @@ struct TensorIOFormat
     bool legacy_bit = false;
 };
 
-template<typename T, int Layout, int rank> class TensorWithFormat;
+template <typename T, int Layout, int rank>
+class TensorWithFormat;
 //specialize for Layout=ColMajor, Layout=RowMajor and rank=0.
-template<typename T, int rank>
-class TensorWithFormat<T,RowMajor,rank>
+template <typename T, int rank>
+class TensorWithFormat<T, RowMajor, rank>
 {
 public:
-
     TensorWithFormat(const T& tensor, const TensorIOFormat& format)
-        : t_tensor(tensor), t_format(format) {}
+        : t_tensor(tensor)
+        , t_format(format)
+    {}
 
     friend std::ostream & operator << (std::ostream & os, const TensorWithFormat<T, RowMajor, rank>& wf) {
       // Evaluate the expression if needed
@@ -159,20 +161,23 @@ class TensorWithFormat<T,ColMajor,0>
 {
 public:
     TensorWithFormat(const T& tensor, const TensorIOFormat& format)
-        : t_tensor(tensor), t_format(format) {}
+        : t_tensor(tensor)
+        , t_format(format)
+    {}
 
-    friend std::ostream & operator << (std::ostream & os, const TensorWithFormat<T, ColMajor, 0>& wf) {
-      // Evaluate the expression if needed
-      typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
-      TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
-      Evaluator tensor(eval, DefaultDevice());
-      tensor.evalSubExprsIfNeeded(NULL);
-      internal::TensorPrinter<Evaluator, 0>::run(os, tensor, wf.t_format);
-      // Cleanup.
-      tensor.cleanup();
-      return os;
+    friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, ColMajor, 0>& wf)
+    {
+        // Evaluate the expression if needed
+        typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
+        TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
+        Evaluator tensor(eval, DefaultDevice());
+        tensor.evalSubExprsIfNeeded(NULL);
+        internal::TensorPrinter<Evaluator, 0>::run(os, tensor, wf.t_format);
+        // Cleanup.
+        tensor.cleanup();
+        return os;
     }
-    
+
 protected:
     T t_tensor;
     TensorIOFormat t_format;
@@ -181,57 +186,47 @@ protected:
 namespace internal {
 template <typename Tensor, std::size_t rank>
 struct TensorPrinter {
-    static void run (std::ostream& s, const Tensor& _t, const TensorIOFormat& fmt) {
-      typedef typename Tensor::Scalar Scalar;
-      typedef typename Tensor::Index Index;
-      static const int layout = Tensor::Layout;
-      // backwards compatibility case: print tensor after reshaping to matrix of size dim(0) x (dim(1)*dim(2)*...*dim(rank-1)).
-      if (fmt.legacy_bit) {
-        const Index total_size = internal::array_prod(_t.dimensions());
-        if (total_size > 0) {
-          const Index first_dim = Eigen::internal::array_get<0>(_t.dimensions());
-          Map<const Array<Scalar, Dynamic, Dynamic, layout> > matrix(const_cast<Scalar*>(_t.data()), first_dim, total_size/first_dim);
-          s << matrix;
-          return;
+    static void run(std::ostream& s, const Tensor& _t, const TensorIOFormat& fmt)
+    {
+        typedef typename Tensor::Scalar Scalar;
+        typedef typename Tensor::Index Index;
+        static const int layout = Tensor::Layout;
+        // backwards compatibility case: print tensor after reshaping to matrix of size dim(0) x (dim(1)*dim(2)*...*dim(rank-1)).
+        if(fmt.legacy_bit) {
+            const Index total_size = internal::array_prod(_t.dimensions());
+            if(total_size > 0) {
+                const Index first_dim = Eigen::internal::array_get<0>(_t.dimensions());
+                Map<const Array<Scalar, Dynamic, Dynamic, layout>> matrix(const_cast<Scalar*>(_t.data()), first_dim, total_size / first_dim);
+                s << matrix;
+                return;
+            }
         }
-      }
 
-      assert(layout == RowMajor);
-      //from here on we have a tensor in RowMajor storage
+        assert(layout == RowMajor);
+        // from here on we have a tensor in RowMajor storage
 
-      typedef typename
-        conditional<
-          is_same<Scalar, char>::value ||
-          is_same<Scalar, unsigned char>::value ||
-          is_same<Scalar, numext::int8_t>::value ||
-          is_same<Scalar, numext::uint8_t>::value,
-          int,
-          typename conditional<
-              is_same<Scalar, std::complex<char> >::value ||
-              is_same<Scalar, std::complex<unsigned char> >::value ||
-              is_same<Scalar, std::complex<numext::int8_t> >::value ||
-              is_same<Scalar, std::complex<numext::uint8_t> >::value,
-              std::complex<int>,
-              const Scalar&
-              >::type
-          >::type PrintType;
+        typedef typename conditional<
+            is_same<Scalar, char>::value || is_same<Scalar, unsigned char>::value || is_same<Scalar, numext::int8_t>::value ||
+                is_same<Scalar, numext::uint8_t>::value,
+            int,
+            typename conditional<is_same<Scalar, std::complex<char>>::value || is_same<Scalar, std::complex<unsigned char>>::value ||
+                                     is_same<Scalar, std::complex<numext::int8_t>>::value || is_same<Scalar, std::complex<numext::uint8_t>>::value,
+                                 std::complex<int>,
+                                 const Scalar&>::type>::type PrintType;
 
         const Index total_size = array_prod(_t.dimensions());
 
         std::streamsize explicit_precision;
         if(fmt.precision == StreamPrecision) {
-          explicit_precision = 0;
-        }
-        else if(fmt.precision == FullPrecision) {
-          if (NumTraits<Scalar>::IsInteger) {
             explicit_precision = 0;
-          }
-          else {
-            explicit_precision = significant_decimals_impl<Scalar>::run();
-          }
-        }
-        else {
-          explicit_precision = fmt.precision;
+        } else if(fmt.precision == FullPrecision) {
+            if(NumTraits<Scalar>::IsInteger) {
+                explicit_precision = 0;
+            } else {
+                explicit_precision = significant_decimals_impl<Scalar>::run();
+            }
+        } else {
+            explicit_precision = fmt.precision;
         }
 
         std::streamsize old_precision = 0;
@@ -241,86 +236,88 @@ struct TensorPrinter {
 
         bool align_cols = !(fmt.flags & DontAlignCols);
         if(align_cols) {
-          // compute the largest width
-          for (Index i=0; i<total_size; i++) {
-            std::stringstream sstr;
-            sstr.copyfmt(s);
-            sstr << static_cast<PrintType>(_t.data()[i]);
-            width = std::max<Index>(width, Index(sstr.str().length()));
-          }
+            // compute the largest width
+            for(Index i = 0; i < total_size; i++) {
+                std::stringstream sstr;
+                sstr.copyfmt(s);
+                sstr << static_cast<PrintType>(_t.data()[i]);
+                width = std::max<Index>(width, Index(sstr.str().length()));
+            }
         }
         std::streamsize old_width = s.width();
         char old_fill_character = s.fill();
 
         s << fmt.tenPrefix;
-        for (Index i = 0; i<total_size; i++) {
-          std::array<bool, rank> is_at_end{};
-          std::array<bool, rank> is_at_begin{};
+        for(Index i = 0; i < total_size; i++) {
+            std::array<bool, rank> is_at_end{};
+            std::array<bool, rank> is_at_begin{};
 
-          //is the ith element the end of an coeff (always true), of a row, of a matrix, ...?
-          for (std::size_t k=0; k<rank; k++) {
-            if ((i+1) % (std::accumulate(_t.dimensions().rbegin(), _t.dimensions().rbegin()+k, 1, std::multiplies<Index>())) == 0) {
-              is_at_end[k] = true;
+            // is the ith element the end of an coeff (always true), of a row, of a matrix, ...?
+            for(std::size_t k = 0; k < rank; k++) {
+                if((i + 1) % (std::accumulate(_t.dimensions().rbegin(), _t.dimensions().rbegin() + k, 1, std::multiplies<Index>())) == 0) {
+                    is_at_end[k] = true;
+                }
             }
-          }
 
-          //is the ith element the begin of an coeff (always true), of a row, of a matrix, ...?
-          for (std::size_t k=0; k<rank; k++) {
-            if (i % (std::accumulate(_t.dimensions().rbegin(), _t.dimensions().rbegin()+k, 1, std::multiplies<Index>())) == 0) {
-              is_at_begin[k] = true;
+            // is the ith element the begin of an coeff (always true), of a row, of a matrix, ...?
+            for(std::size_t k = 0; k < rank; k++) {
+                if(i % (std::accumulate(_t.dimensions().rbegin(), _t.dimensions().rbegin() + k, 1, std::multiplies<Index>())) == 0) {
+                    is_at_begin[k] = true;
+                }
             }
-          }
 
-          //do we have a line break?
-          bool is_at_begin_after_newline = false;
-          for (std::size_t k=0; k<rank; k++) {
-            if (is_at_begin[k]) {
-              std::size_t separator_index = (k<fmt.separator.size()) ? k : fmt.separator.size()-1;
-              if(fmt.separator[separator_index].find('\n') != std::string::npos) { is_at_begin_after_newline = true; }
+            // do we have a line break?
+            bool is_at_begin_after_newline = false;
+            for(std::size_t k = 0; k < rank; k++) {
+                if(is_at_begin[k]) {
+                    std::size_t separator_index = (k < fmt.separator.size()) ? k : fmt.separator.size() - 1;
+                    if(fmt.separator[separator_index].find('\n') != std::string::npos) { is_at_begin_after_newline = true; }
+                }
             }
-          }
 
-          bool is_at_end_before_newline = false;
-          for (std::size_t k=0; k<rank; k++) {
-            if (is_at_end[k]) {
-              std::size_t separator_index = (k<fmt.separator.size()) ? k : fmt.separator.size()-1;
-              if(fmt.separator[separator_index].find('\n') != std::string::npos) { is_at_end_before_newline = true; }
+            bool is_at_end_before_newline = false;
+            for(std::size_t k = 0; k < rank; k++) {
+                if(is_at_end[k]) {
+                    std::size_t separator_index = (k < fmt.separator.size()) ? k : fmt.separator.size() - 1;
+                    if(fmt.separator[separator_index].find('\n') != std::string::npos) { is_at_end_before_newline = true; }
+                }
             }
-          }
 
-          std::stringstream suffix, prefix, separator;
-          for (std::size_t k=0; k<rank; k++) {
-            std::size_t suffix_index = (k < fmt.suffix.size()) ? k : fmt.suffix.size()-1;
-            if (is_at_end[k]) {suffix << fmt.suffix[suffix_index];}
-          }
-          for (std::size_t k=0; k<rank; k++) {
-            std::size_t separator_index = (k < fmt.separator.size()) ? k : fmt.separator.size()-1;
-            if (is_at_end[k] and (!is_at_end_before_newline or fmt.separator[separator_index].find('\n') != std::string::npos)) {separator << fmt.separator[separator_index];}
-          }
-          for (std::size_t k=0; k<rank; k++) {
-            std::size_t spacer_index = (k < fmt.spacer.size()) ? k : fmt.spacer.size()-1;
-            if (i!=0 and is_at_begin_after_newline and (!is_at_begin[k] or k==0)) {prefix << fmt.spacer[spacer_index];}
-          }
-          for (int k=rank-1; k>=0; k--) {
-            std::size_t prefix_index = (static_cast<std::size_t>(k) < fmt.prefix.size()) ? k : fmt.prefix.size()-1;
-            if (is_at_begin[k]) {prefix << fmt.prefix[prefix_index];}
-          }
+            std::stringstream suffix, prefix, separator;
+            for(std::size_t k = 0; k < rank; k++) {
+                std::size_t suffix_index = (k < fmt.suffix.size()) ? k : fmt.suffix.size() - 1;
+                if(is_at_end[k]) { suffix << fmt.suffix[suffix_index]; }
+            }
+            for(std::size_t k = 0; k < rank; k++) {
+                std::size_t separator_index = (k < fmt.separator.size()) ? k : fmt.separator.size() - 1;
+                if(is_at_end[k] and (!is_at_end_before_newline or fmt.separator[separator_index].find('\n') != std::string::npos)) {
+                    separator << fmt.separator[separator_index];
+                }
+            }
+            for(std::size_t k = 0; k < rank; k++) {
+                std::size_t spacer_index = (k < fmt.spacer.size()) ? k : fmt.spacer.size() - 1;
+                if(i != 0 and is_at_begin_after_newline and (!is_at_begin[k] or k == 0)) { prefix << fmt.spacer[spacer_index]; }
+            }
+            for(int k = rank - 1; k >= 0; k--) {
+                std::size_t prefix_index = (static_cast<std::size_t>(k) < fmt.prefix.size()) ? k : fmt.prefix.size() - 1;
+                if(is_at_begin[k]) { prefix << fmt.prefix[prefix_index]; }
+            }
 
-          s << prefix.str();
-          if(width) {
-            s.fill(fmt.fill);
-            s.width(width);
-            s << std::right;
-          }
-          s << _t.data()[i];
-          s << suffix.str();
-          if (i < total_size -1) {s << separator.str();}
+            s << prefix.str();
+            if(width) {
+                s.fill(fmt.fill);
+                s.width(width);
+                s << std::right;
+            }
+            s << _t.data()[i];
+            s << suffix.str();
+            if(i < total_size - 1) { s << separator.str(); }
         }
         s << fmt.tenSuffix;
         if(explicit_precision) s.precision(old_precision);
         if(width) {
-          s.fill(old_fill_character);
-          s.width(old_width);
+            s.fill(old_fill_character);
+            s.width(old_width);
         }
     }
 };
@@ -355,8 +352,8 @@ struct TensorPrinter<Tensor, 0> {
 };
 
 } // end namespace internal
-template<typename T>
-std::ostream & operator <<(std::ostream & s, const TensorBase<T,ReadOnlyAccessors> & t)
+template <typename T>
+std::ostream& operator<<(std::ostream& s, const TensorBase<T, ReadOnlyAccessors>& t)
 {
     s << t.format(TensorIOFormat::Plain());
     return s;

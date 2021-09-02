@@ -968,7 +968,6 @@ class TensorBase<Derived, ReadOnlyAccessors>
     #ifdef EIGEN_READONLY_TENSORBASE_PLUGIN
     #include EIGEN_READONLY_TENSORBASE_PLUGIN
     #endif
-
   protected:
     template <typename Scalar, int NumIndices, int Options, typename IndexType> friend class Tensor;
     template <typename Scalar, typename Dimensions, int Option, typename IndexTypes> friend class TensorFixedSize;

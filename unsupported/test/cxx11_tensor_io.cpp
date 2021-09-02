@@ -16,62 +16,76 @@ template<typename Scalar, int rank, int Layout> struct test_tensor_ostream_impl 
 
 template<typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 0, Layout> {
-  static void run() {
-    Eigen::Tensor<Scalar, 0> t; t.setValues(1);
-    std::ostringstream os;
-    os << t.format(Eigen::IOFormats::Plain);
-    VERIFY(os.str() == "1");
-  }
+    static void run()
+    {
+        Eigen::Tensor<Scalar, 0> t;
+        t.setValues(1);
+        std::ostringstream os;
+        os << t.format(Eigen::TensorIOFormat::Plain());
+        VERIFY(os.str() == "1");
+    }
 };
 
 template<typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 1, Layout> {
-  static void run() {
-      Eigen::Tensor<Scalar, 1> t = {3}; t.setValues({1,2,3});
-    std::ostringstream os;
-    os << t.format(Eigen::IOFormats::Plain);
-    VERIFY(os.str() == "1 2 3");
-  }
+    static void run()
+    {
+        Eigen::Tensor<Scalar, 1> t = {3};
+        t.setValues({1, 2, 3});
+        std::ostringstream os;
+        os << t.format(Eigen::TensorIOFormat::Plain());
+        VERIFY(os.str() == "1 2 3");
+    }
 };
 
 template<typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 2, Layout> {
-  static void run() {
-    Eigen::Tensor<Scalar, 2> t = {3, 2}; t.setValues({{1, 2}, {3, 4}, {5, 6}});
-    std::ostringstream os;
-    os << t.format(Eigen::IOFormats::Plain);
-    VERIFY(os.str() == "1 2\n3 4\n5 6");
-  }
+    static void run()
+    {
+        Eigen::Tensor<Scalar, 2> t = {3, 2};
+        t.setValues({{1, 2}, {3, 4}, {5, 6}});
+        std::ostringstream os;
+        os << t.format(Eigen::TensorIOFormat::Plain());
+        VERIFY(os.str() == "1 2\n3 4\n5 6");
+    }
 };
 
 template<typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 3, Layout> {
-  static void run() {
-    Eigen::Tensor<Scalar, 3> t = {4, 3, 2}; t.setValues( {{{1, 2}, {3, 4}, {5, 6}}, {{7, 8}, {9, 10}, {11, 12}}, {{13, 14}, {15, 16}, {17, 18}}, {{19, 20}, {21, 22}, {23, 24}}} );
-    std::ostringstream os;
-    os << t.format(Eigen::IOFormats::Plain);
-    VERIFY(os.str() == "1  2 \n3  4 \n5  6 \n\n7  8 \n9  10\n11 12\n\n13 14\n15 16\n17 18\n\n19 20\n21 22\n23 24");
-  }
+    static void run()
+    {
+        Eigen::Tensor<Scalar, 3> t = {4, 3, 2};
+        t.setValues({{{1, 2}, {3, 4}, {5, 6}}, {{7, 8}, {9, 10}, {11, 12}}, {{13, 14}, {15, 16}, {17, 18}}, {{19, 20}, {21, 22}, {23, 24}}});
+        std::ostringstream os;
+        os << t.format(Eigen::TensorIOFormat::Plain());
+        VERIFY(os.str() == " 1  2\n 3  4\n 5  6\n\n 7  8\n 9 10\n11 12\n\n13 14\n15 16\n17 18\n\n19 20\n21 22\n23 24");
+    }
 };
 
 template<int Layout>
 struct test_tensor_ostream_impl<bool, 2, Layout> {
-  static void run() {
-    Eigen::Tensor<bool, 2> t = {3,2}; t.setValues({{false, true}, {true, false}, {false, false}});
-    std::ostringstream os;
-    os << t.format(Eigen::IOFormats::Plain);
-    VERIFY(os.str() == "0 1\n1 0\n0 0");
-  }
+    static void run()
+    {
+        Eigen::Tensor<bool, 2> t = {3, 2};
+        t.setValues({{false, true}, {true, false}, {false, false}});
+        std::ostringstream os;
+        os << t.format(Eigen::TensorIOFormat::Plain());
+        VERIFY(os.str() == "0 1\n1 0\n0 0");
+    }
 };
 
 template<typename Scalar, int Layout>
 struct test_tensor_ostream_impl<std::complex<Scalar>, 2, Layout> {
-  static void run() {
-      Eigen::Tensor<std::complex<Scalar>, 2> t = {3,2}; t.setValues({{std::complex<Scalar>(1,2), std::complex<Scalar>(12,3)}, {std::complex<Scalar>(-4,2), std::complex<Scalar>(0,5)}, {std::complex<Scalar>(-1,4), std::complex<Scalar>(5,27)}});
-    std::ostringstream os;
-    os << t.format(Eigen::IOFormats::Plain);
-    VERIFY(os.str() == "(1,2)  (12,3)\n(-4,2) (0,5) \n(-1,4) (5,27)");
-  }
+    static void run()
+    {
+        Eigen::Tensor<std::complex<Scalar>, 2> t = {3, 2};
+        t.setValues({{std::complex<Scalar>(1, 2), std::complex<Scalar>(12, 3)},
+                     {std::complex<Scalar>(-4, 2), std::complex<Scalar>(0, 5)},
+                     {std::complex<Scalar>(-1, 4), std::complex<Scalar>(5, 27)}});
+        std::ostringstream os;
+        os << t.format(Eigen::TensorIOFormat::Plain());
+        VERIFY(os.str() == " (1,2) (12,3)\n(-4,2)  (0,5)\n(-1,4) (5,27)");
+    }
 };
 
 template<typename Scalar, int rank, int Layout>

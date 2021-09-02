@@ -1797,16 +1797,16 @@ TODO
 ## Tensor Printing
 Tensors can be printed into a stream object (e.g. `std::cout`) using different formatting options.
 
-	Eigen::Tensor<float, 3> a = {4, 3, 2};
+	Eigen::Tensor<float, 3> tensor3d = {4, 3, 2};
 	tensor3d.setValues( {{{1, 2}, {3, 4}, {5, 6}}, {{7, 8}, {9, 10}, {11, 12}}, {{13, 14}, {15, 16}, {17, 18}}, {{19, 20}, {21, 22}, {23, 24}}} );
-	std::cout << a.format(Eigen::IOFormats::Plain) << std::endl;
+	std::cout << tensor3d.format(Eigen::TensorIOFormat::Plain()) << std::endl;
 	==>
-	1  2 
-	3  4 
-	5  6 
+	 1  2 
+	 3  4 
+	 5  6 
 	
-	7  8 
-	9  10
+	 7  8 
+	 9 10
 	11 12
 	
 	13 14
@@ -1818,14 +1818,14 @@ Tensors can be printed into a stream object (e.g. `std::cout`) using different f
 	23 24
 
 
-In the example, we used the predefined format `Eigen::IOFormats::Plain`. Here is the list of all predefined formats from which you can choose:
-- `Eigen::IOFormats::Plain` for a plain output without braces. Different submatrices are separated by a blank line.
-- `Eigen::IOFormats::Numpy` for numpy-like output.
-- `Eigen::IOFormats::Native` for a `c++` like output which can be directly copy-pasted to setValues().
-- `Eigen::IOFormats::Short` for a stream like output.
-- `Eigen::IOFormats::Legacy` for a backwards compatible printing of tensors.
+In the example, we used the predefined format `Eigen::TensorIOFormat::Plain`.
+Here is the list of all predefined formats from which you can choose:
+- `Eigen::TensorIOFormat::Plain()` for a plain output without braces. Different submatrices are separated by a blank line.
+- `Eigen::TensorIOFormat::Numpy()` for numpy-like output.
+- `Eigen::TensorIOFormat::Native()` for a `c++` like output which can be directly copy-pasted to setValues().
+- `Eigen::TensorIOFormat::Legacy()` for a backwards compatible printing of tensors.
 
-If you send the tensor directly to the stream the default format is called which is currently `Eigen::IOFormats::Legacy`.
+If you send the tensor directly to the stream the default format is called which is `Eigen::IOFormats::Plain()`.
 
 You can define your own format by explicitly providing a `Eigen::TensorIOFormat` class instance. Here, you can specify:
 - The overall prefix and suffix with `std::string tenPrefix` and `std::string tenSuffix`

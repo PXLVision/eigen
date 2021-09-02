@@ -56,7 +56,34 @@ struct TensorIOFormat
         }
       }
     }
-        
+
+    static inline const TensorIOFormat Numpy() {
+      std::vector<std::string> prefix = {"", "["};
+      std::vector<std::string> suffix = {"", "]"};
+      std::vector<std::string> separator = {", ", "\n"};
+      return TensorIOFormat(separator, prefix, suffix, StreamPrecision, 0, "[" , "]");
+    }
+
+    static inline const TensorIOFormat Plain() {
+      std::vector<std::string> separator = {" ", "\n", "\n", ""};
+      std::vector<std::string> prefix = {""};
+      std::vector<std::string> suffix = {""};
+      return TensorIOFormat(separator, prefix, suffix, StreamPrecision, 0, "" , "", ' ');
+    }
+
+    static inline const TensorIOFormat Native() {
+      std::vector<std::string> separator = {", ", "\n"};
+      std::vector<std::string> prefix = {"", "{"};
+      std::vector<std::string> suffix = {"", "}"};
+      return TensorIOFormat(separator, prefix, suffix, StreamPrecision, 0, "{" , "}", ' ');
+    }
+
+    static inline const TensorIOFormat Legacy() {
+      TensorIOFormat LegacyFormat(StreamPrecision, 0, "", "", ' ');
+      LegacyFormat.legacy_bit = true;
+      return LegacyFormat;
+    }
+    
     std::string tenPrefix;
     std::string tenSuffix;
     std::vector<std::string> prefix;
@@ -68,57 +95,6 @@ struct TensorIOFormat
     std::vector<std::string> spacer{};
     bool legacy_bit = false;
 };
-
-namespace internal {
-    TensorIOFormat gen_numpy_format() {
-      return TensorIOFormat(StreamPrecision, 0, "array([" , "])");
-    }
-
-    TensorIOFormat gen_short_format() {
-      std::vector<std::string> separator = {", "};
-      std::vector<std::string> prefix = {""};
-      std::vector<std::string> suffix = {""};
-
-      TensorIOFormat ShortFormat(separator, prefix, suffix, StreamPrecision, 1, " << " , ";");
-      return ShortFormat;
-    }
-
-    TensorIOFormat gen_plain_format() {
-      std::vector<std::string> separator = {" ", "\n", "\n", ""};
-      std::vector<std::string> prefix = {""};
-      std::vector<std::string> suffix = {""};
-      
-      TensorIOFormat PlainFormat(separator, prefix, suffix, StreamPrecision, 0, "" , "", ' ');
-      return PlainFormat;
-    }
-
-    TensorIOFormat gen_native_format() {
-      std::vector<std::string> separator = {", ", ""};
-      std::vector<std::string> prefix = {"", "{"};
-      std::vector<std::string> suffix = {"", "}"};
-
-      TensorIOFormat EigenFormat(separator, prefix, suffix, StreamPrecision, 0, "{" , "}", ' ');
-      return EigenFormat;
-    }
-
-    TensorIOFormat gen_legacy_format() {
-      TensorIOFormat LegacyFormat(StreamPrecision, 0, "", "", ' ');
-      LegacyFormat.legacy_bit = true;
-      return LegacyFormat;
-    }
-} // namespace internal
-
-namespace IOFormats {
-    const TensorIOFormat Numpy = internal::gen_numpy_format();
-
-    const TensorIOFormat Short = internal::gen_short_format();
-
-    const TensorIOFormat Plain = internal::gen_plain_format();
-
-    const TensorIOFormat Native = internal::gen_native_format();
-
-    const TensorIOFormat Legacy = internal::gen_legacy_format();
-}
 
 template<typename T, int Layout, int rank> class TensorWithFormat;
 //specialize for Layout=ColMajor, Layout=RowMajor and rank=0.
@@ -334,7 +310,7 @@ struct TensorPrinter {
           if(width) {
             s.fill(fmt.fill);
             s.width(width);
-            s << std::left;
+            s << std::right;
           }
           s << _t.data()[i];
           s << suffix.str();
@@ -382,7 +358,7 @@ struct TensorPrinter<Tensor, 0> {
 template<typename T>
 std::ostream & operator <<(std::ostream & s, const TensorBase<T,ReadOnlyAccessors> & t)
 {
-    s << t.format(IOFormats::Legacy);
+    s << t.format(TensorIOFormat::Plain());
     return s;
 }
 } // end namespace Eigen

@@ -14,9 +14,8 @@
 
 template<typename Scalar, int rank, int Layout> struct test_tensor_ostream_impl {};
 
-template <typename Scalar, int Layout>
-struct test_tensor_ostream_impl<Scalar, 0, Layout>
-{
+template<typename Scalar, int Layout>
+struct test_tensor_ostream_impl<Scalar, 0, Layout> {
     static void run()
     {
         Eigen::Tensor<Scalar, 0> t;
@@ -27,9 +26,8 @@ struct test_tensor_ostream_impl<Scalar, 0, Layout>
     }
 };
 
-template <typename Scalar, int Layout>
-struct test_tensor_ostream_impl<Scalar, 1, Layout>
-{
+template<typename Scalar, int Layout>
+struct test_tensor_ostream_impl<Scalar, 1, Layout> {
     static void run()
     {
         Eigen::Tensor<Scalar, 1> t = {3};
@@ -40,9 +38,8 @@ struct test_tensor_ostream_impl<Scalar, 1, Layout>
     }
 };
 
-template <typename Scalar, int Layout>
-struct test_tensor_ostream_impl<Scalar, 2, Layout>
-{
+template<typename Scalar, int Layout>
+struct test_tensor_ostream_impl<Scalar, 2, Layout> {
     static void run()
     {
         Eigen::Tensor<Scalar, 2> t = {3, 2};
@@ -53,9 +50,8 @@ struct test_tensor_ostream_impl<Scalar, 2, Layout>
     }
 };
 
-template <typename Scalar, int Layout>
-struct test_tensor_ostream_impl<Scalar, 3, Layout>
-{
+template<typename Scalar, int Layout>
+struct test_tensor_ostream_impl<Scalar, 3, Layout> {
     static void run()
     {
         Eigen::Tensor<Scalar, 3> t = {4, 3, 2};
@@ -66,9 +62,8 @@ struct test_tensor_ostream_impl<Scalar, 3, Layout>
     }
 };
 
-template <int Layout>
-struct test_tensor_ostream_impl<bool, 2, Layout>
-{
+template<int Layout>
+struct test_tensor_ostream_impl<bool, 2, Layout> {
     static void run()
     {
         Eigen::Tensor<bool, 2> t = {3, 2};
@@ -79,9 +74,8 @@ struct test_tensor_ostream_impl<bool, 2, Layout>
     }
 };
 
-template <typename Scalar, int Layout>
-struct test_tensor_ostream_impl<std::complex<Scalar>, 2, Layout>
-{
+template<typename Scalar, int Layout>
+struct test_tensor_ostream_impl<std::complex<Scalar>, 2, Layout> {
     static void run()
     {
         Eigen::Tensor<std::complex<Scalar>, 2> t = {3, 2};

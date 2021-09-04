@@ -508,7 +508,6 @@ void ColPivHouseholderQR<MatrixType>::computeInPlace()
     m_colNormsUpdated.coeffRef(k) = m_colNormsDirect.coeffRef(k);
   }
 
-  RealScalar threshold_helper =  numext::abs2<RealScalar>(m_colNormsUpdated.maxCoeff() * NumTraits<RealScalar>::epsilon()) / RealScalar(rows);
   RealScalar norm_downdate_threshold = numext::sqrt(NumTraits<RealScalar>::epsilon());
 
   m_nonzero_pivots = size; // the generic case is that in which all pivots are nonzero (invertible case)
@@ -523,7 +522,9 @@ void ColPivHouseholderQR<MatrixType>::computeInPlace()
 
     // Track the number of meaningful pivots but do not stop the decomposition to make
     // sure that the initial matrix is properly reproduced. See bug 941.
-    if(m_nonzero_pivots==size && biggest_col_sq_norm < threshold_helper * RealScalar(rows-k))
+    // A pivot must be exactly zero to be discounted. See bug #2318, and similar
+    // path in FullPivLU.
+    if(m_nonzero_pivots==size && biggest_col_sq_norm  == RealScalar(0))
       m_nonzero_pivots = k;
 
     // apply the transposition to the columns
@@ -586,7 +587,7 @@ template<typename MatrixType_>
 template<typename RhsType, typename DstType>
 void ColPivHouseholderQR<MatrixType_>::_solve_impl(const RhsType &rhs, DstType &dst) const
 {
-  const Index nonzero_pivots = nonzeroPivots();
+  const Index nonzero_pivots = rank();
 
   if(nonzero_pivots == 0)
   {
@@ -610,7 +611,7 @@ template<typename MatrixType_>
 template<bool Conjugate, typename RhsType, typename DstType>
 void ColPivHouseholderQR<MatrixType_>::_solve_impl_transposed(const RhsType &rhs, DstType &dst) const
 {
-  const Index nonzero_pivots = nonzeroPivots();
+  const Index nonzero_pivots = rank();
 
   if(nonzero_pivots == 0)
   {

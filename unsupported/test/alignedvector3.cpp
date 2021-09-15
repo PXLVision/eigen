@@ -7,8 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#define EIGEN_NO_STATIC_ASSERT
-
 #include "main.h"
 #include <unsupported/Eigen/AlignedVector3>
 
@@ -64,8 +62,9 @@ void alignedvector3()
   
   {
     FastType f6 = RefType::Zero();
-    FastType f7 = FastType::Zero();
-    VERIFY_IS_APPROX(f6,f7);
+    // The following line causes a static assertion:
+    //    FastType f7; = FastType::Zero();
+    //    VERIFY_IS_APPROX(f6,f7);
     f6 = r4+r1;
     VERIFY_IS_APPROX(f6,r4+r1);
     f6 -= Scalar(2)*r4;

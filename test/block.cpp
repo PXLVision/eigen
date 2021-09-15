@@ -157,10 +157,6 @@ template<typename MatrixType> void block(const MatrixType& m)
   
   // check that linear acccessors works on blocks
   m1 = m1_copy;
-#ifndef EIGEN_NO_STATIC_ASSERT
-#define EIGEN_NO_STATIC_ASSERT  
-#undef EIGEN_NO_STATIC_ASSERT  
-#endif
 
   // now test some block-inside-of-block.
   

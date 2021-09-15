@@ -15,6 +15,7 @@
 
 namespace Eigen {
 
+// The index type defined by EIGEN_DEFAULT_DENSE_INDEX_TYPE must be a signed type.
 EIGEN_STATIC_ASSERT(NumTraits<DenseIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
 
 /** \class DenseBase

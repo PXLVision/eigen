@@ -73,8 +73,8 @@ static void test_cuda_sum_reductions() {
   Eigen::GpuStreamDevice stream;
   Eigen::GpuDevice gpu_device(&stream);
 
-  const int num_rows = internal::random<int>(1024, 5*1024);
-  const int num_cols = internal::random<int>(1024, 5*1024);
+  const int num_rows = internal::random<int>(512, 1024);
+  const int num_cols = internal::random<int>(256, 512);
 
   Tensor<std::complex<float>, 2> in(num_rows, num_cols);
   in.setRandom();
@@ -109,8 +109,8 @@ static void test_cuda_mean_reductions() {
   Eigen::GpuStreamDevice stream;
   Eigen::GpuDevice gpu_device(&stream);
 
-  const int num_rows = internal::random<int>(1024, 5*1024);
-  const int num_cols = internal::random<int>(1024, 5*1024);
+  const int num_rows = internal::random<int>(512, 1024);
+  const int num_cols = internal::random<int>(256, 512);
 
   Tensor<std::complex<float>, 2> in(num_rows, num_cols);
   in.setRandom();
@@ -145,8 +145,8 @@ static void test_cuda_product_reductions() {
   Eigen::GpuStreamDevice stream;
   Eigen::GpuDevice gpu_device(&stream);
 
-  const int num_rows = internal::random<int>(1024, 5*1024);
-  const int num_cols = internal::random<int>(1024, 5*1024);
+  const int num_rows = internal::random<int>(512, 1024);
+  const int num_cols = internal::random<int>(256, 512);
 
   Tensor<std::complex<float>, 2> in(num_rows, num_cols);
   in.setRandom();
